@@ -4,6 +4,8 @@ longform:
   title: Pentra
   workflow: Default Workflow
   sceneFolder: /
-  scenes: []
+  scenes:
+    - Welcome
+  sceneTemplate: templates/webpage.md
   ignoredFiles: []
 ---
