@@ -1,1 +1,1 @@
-<head> <meta http-equiv="refresh" content="0; url=http://localhost:8080/Pentra/Welcome" /> <\head>
+<head> <meta http-equiv="refresh" content="0; url=https://trigii.github.io/Pentra/Welcome" /> <\head>
