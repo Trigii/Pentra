@@ -74,11 +74,13 @@ Used for backward compatibility (challenge-response with the NTLM hash of the us
 
 # Pentesting Phases
 
-1. [[AD Enumeration]]
+1. [[AD External Recon and Enumeration Principles]]
 
-2. [[AD Privilege Escalation]]
+2. [[AD Enumeration]]
 
-3. [[AD Lateral Movement]]
+3. [[AD Privilege Escalation]]
 
-4. [[AD Persistence]]
+4. [[AD Lateral Movement]]
+
+5. [[AD Persistence]]
 
