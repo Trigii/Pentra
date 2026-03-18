@@ -1,6 +1,6 @@
 ---
 title: Command and Control (C2-C&C)
-draft: false
+draft: true
 tags:
   - red-team
   - offensive

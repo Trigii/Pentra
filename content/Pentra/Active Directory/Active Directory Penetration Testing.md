@@ -65,9 +65,36 @@ User: DOMAIN\USER
 Password: password
 ```
 
+**LDAP**
+Protocol used to communicate with Active Directory.
+
+According to [Microsoft's documentation](https://learn.microsoft.com/en-us/windows/win32/adsi/ldap-adspath?redirectedfrom=MSDN), we need a specific LDAP _ADsPath_ in order to communicate with the AD service. The LDAP path's prototype looks like this:
+```
+LDAP://HostName[:PortNumber][/DistinguishedName]
+```
+
+- Hostname: it can be a computer name, IP address or a domain name.
+
+> [!Note]
+> Setting the domain name as the hostname could potentially resolve to any of the DC. First, we have to identify the Primary DC, which is the one holding the `PdcRoleOwner` property
+
+- Port number: set it when we are dealing with a domain that uses non-default ports.
+- Distinguished Name: name that uniquely identifies an Object in AD. For example for a user called `Stephanie`, the DN would be:
+```
+CN=Stephanie,CN=Users,DC=corp,DC=com
+```
+
+- Script for obtaining full LDAP Path:
+```powershell
+$PDC = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain().PdcRoleOwner.Name # get Primary DC
+$DN = ([adsi]'').distinguishedName # get DN for the Domain 
+$LDAP = "LDAP://$PDC/$DN" # get LDAP Path for PDC
+$LDAP
+```
+
 **Kerberos**
 Authentication protocol on AD
-- KDC = AS+TGS = DC -> authenticates the user and issues the TGT to the user
+- KDC = AS+TGServer = DC -> authenticates the user and issues the TGT to the user
 - TGS = provides the services and issues the ST to the user
 **NTLM**
 Used for backward compatibility (challenge-response with the NTLM hash of the users password)
@@ -84,3 +111,6 @@ Used for backward compatibility (challenge-response with the NTLM hash of the us
 
 5. [[AD Persistence]]
 
+6. [[AD ACL Enumeration and Abuse]]
+
+7. [[AD Domain Trust Abuse]]

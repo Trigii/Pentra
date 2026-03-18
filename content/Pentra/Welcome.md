@@ -7,6 +7,7 @@ tags:
 This Vault contains the ultimate Cheatsheet for pentesting. It will be updated with new information regularly. Currently it has the sufficient knowledge to pass beginner and intermediate exams like:
 - **eJPTv2**
 - **eCPPTv3**
+- **OSCP**
 
 > [!NOTE]
 > All the information corresponds to the current knwoledge of the author (Trigii).
