@@ -15,7 +15,7 @@ This Vault contains the ultimate Cheatsheet for pentesting. It will be updated w
 ---
 # Classic Pentesting Phases
 
-1. [[Information Gathering]]
+1. [[content/Pentra/☠️ Classic Pentesting/1 - Information Gathering/Information Gathering]]
 
 2. [[Exploitation]]
 
