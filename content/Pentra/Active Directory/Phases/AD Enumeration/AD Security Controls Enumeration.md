@@ -35,3 +35,23 @@ PS C:\htb> Find-AdmPwdExtendedRights (find users with "All Extended Rights" -> t
 
 PS C:\htb> Get-LAPSComputers (enumerate hosts with LAPS enabled)
 ```
+
+- Enumerate the Windows Firewall state and rules:
+```powershell
+PS C:\htb> Get-NetFirewallProfile | select Name, Enabled   (check if Domain/Private/Public profiles are on)
+
+PS C:\htb> Get-NetFirewallRule | where {$_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound'} | select DisplayName
+```
+
+- Enumerate installed AV/EDR products (via WMI):
+```powershell
+PS C:\htb> Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct
+
+PS C:\htb> Get-Service | where {$_.DisplayName -match 'defender|sentinel|crowdstrike|carbon|cylance'}
+```
+
+> [!Note]
+> Knowing which controls are active tells us **how** to enumerate. If Windows Defender or Constrained Language Mode is active, PowerView will likely be blocked — fall back to living-off-the-land techniques in [[AD Enumeration (LOTL)]] instead of [[AD Enumeration with PowerView]] or [[AD Automatic Enumeration (BloodHound)]].
+
+> [!Tip]
+> Related: this enumeration is part of the broader [[Active Directory Penetration Testing]] workflow. Bypassing these controls (Defender, AMSI, AppLocker) is covered under obfuscation — see [[Obfuscation]].

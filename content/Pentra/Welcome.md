@@ -3,7 +3,7 @@ title: Welcome
 draft: false
 tags:
 ---
- 
+  
 This Vault contains the ultimate Cheatsheet for pentesting. It will be updated with new information regularly. Currently it has the sufficient knowledge to pass beginner and intermediate exams like:
 - **eJPTv2**
 - **eCPPTv3**
@@ -44,4 +44,11 @@ This Vault contains the ultimate Cheatsheet for pentesting. It will be updated w
 
 - [ ] For each service, add a brief introduction and explanation 🔼
 - [ ] Add "Seccoms" attacks for each protocol... (inspire on smb relay attack diagram) 🔽 
-- [ ] 
+
+# Sync Changes
+
+```bash
+$ cd Pentra 
+$ npm i
+$ npx quartz sync
+```

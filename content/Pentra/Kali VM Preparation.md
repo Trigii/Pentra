@@ -99,6 +99,10 @@ sudo usermod -aG docker $USER
 + pspy +
 Install pspy64: https://github.com/DominicBreuker/pspy/releases
 Copy the binary to the target machine and execute it
+
++ Shared Folder +
+$ sudo adduser $USER vboxsf # add yourelf to the group
+$ chmod 777 /media/sf_Shared
 ```
 
 Bloodhound installation error postgresql lib incompatibility:
