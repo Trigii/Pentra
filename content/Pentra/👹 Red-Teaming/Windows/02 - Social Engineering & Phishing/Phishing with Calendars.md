@@ -333,6 +333,9 @@ $ sudo responder -I tun0
 Run the phishing script:
 ```bash
 $ python3 fakeics.py SMTP_SERVER_IP SENDER_EMAIL RECIPIENT_EMAIL PHISHING_URL
+
+Parameters:
+PHISHING_URL: format http://ATTACKER_IP...
 ```
 
 Once the recipient clicks an href containing the attacker IP address, it will be displayed with a fake login panel:

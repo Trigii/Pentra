@@ -9,7 +9,6 @@ tags:
   - initial-access
   - phishing
 ---
-
 JScript is Microsoft's implementation of ECMAScript (JavaScript) for the Windows Script Host (WSH) environment. Unlike browser JavaScript, JScript running under WSH has direct access to the Windows API, COM objects, the filesystem, and the registry — making it a powerful vector for payload delivery.
 
 JScript files (`.js`, `.jse`) are executed by `wscript.exe` (GUI, default) or `cscript.exe` (console). When a victim double-clicks a `.js` file, WSH executes it natively — no Office, no browser required. This means Jscript is not subject to any of the security restrictions enforced by a browser sandbox, bypassing all security settings.
