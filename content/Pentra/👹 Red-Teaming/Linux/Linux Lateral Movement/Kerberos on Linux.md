@@ -85,7 +85,7 @@ klist # list current tickets
 [Keytab](https://web.mit.edu/kerberos/krb5-devel/doc/basic/keytab_def.html) files allows a user or script to authenticate to Kerberos resources elsewhere on the network on the principal's behalf without entering a password. Its basically a file that contains the AD user and the password encrypted.
 
 > [!Example]
-> For example, let's assume a user wants to retrieve data from an MSSQL database via an automated script using Kerberos authentication.The user could create a keytab file for the script to authenticate against the server with their credentials and then retrieve the information on their behalf.
+> For example, let's assume a user wants to retrieve data from an MSSQL database via an automated script using Kerberos authentication. The user could create a keytab file for the script to authenticate against the server with their credentials and then retrieve the information on their behalf.
 
 Keytab files are commonly used in [_cron_](https://en.wikipedia.org/wiki/Cron) scripts when Kerberos authentication is needed to access certain resources:
 ```bash
@@ -125,12 +125,20 @@ ktuitl: quit
 
 If kereberos is in use on the system, it is worth checking for keytab files since they usually have weak permissions on the system and might contain interesting tickets to grant us access to AD resources.
 
+0. Enumerate keytab file user authorized access:
+```
+klist -kte /etc/krb5.keytab
+```
+
+> [!Note]
+> Typicall computer account keytab file: `/etc/krb5.keytab`
+
 1. If we discover the keytab file on a system, we can load it by running:
 ```bash
 kinit KEYTAB_AD_USER@AD_DOMAIN -k -t /PATH/TO/FILENAME.keytab
 
 # Parameters:
-# KEYTAB_AD_USER@AD_DOMAIN: AD user used for the keytab file (we can find it by)
+# KEYTAB_AD_USER@AD_DOMAIN: AD user used for the keytab file (we can find it by running: klist -kte krb5.keytab)
 # -t: path to the keytab file
 ```
 

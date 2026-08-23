@@ -30,8 +30,9 @@ $ ansible
 
 Other indicators:
 - Ansible configuration file path: `/etc/ansible`
-- Presence of "ansible" related users on the `/etc/passwd` file
+- Presence of "ansible" related users on the `/etc/passwd` file (like `ansibleadm`)
 - Identify Ansible Nodes
+- Identify `.ansible` directories on home folders
 - Check for the list of home folders (user accounts for performing Ansible actions)
 - Inspect Ansible related log messages in the **syslog** file
 
@@ -61,6 +62,11 @@ $ ansible ANSIBLE_GROUP -a "COMMAND" --become USER
 ## Ansible Playbooks
 
 Playbooks allow sets of tasks to be scripted so they can be run routinely at points in time.
+
+Location: `/opt/ansible/*.yaml`
+
+> [!Note]
+> Locate any .yml or .yaml on the system. It might be an ansible playbook.
 
 Create a simple playbook called **getinfo.yml**:
 ```yml
@@ -144,7 +150,7 @@ $ ansible2john.py ./test.yml
 test.yml:$ansible$0*0*9661a952b5822af9a21068e7afae3a119ef0312276baf5bc29d6e3ef312029d0*87b6c306f61e89b5c586bd7e182f2806*28870193b1e448c6b45b68766bb731c3bcb77852f7ca54114d70d52121101540
 ```
 
-3. Copy the payload starting from the `:` onwards and place it into a txt file. Run hashcat to crack the password:
+3. Copy the payload starting from the `:` onwards ($ansible...) and place it into a txt file. Run hashcat to crack the password:
 ```bash
 $ hashcat testhash.txt --force --hash-type=16900 /usr/share/wordlists/rockyou.txt
 ```

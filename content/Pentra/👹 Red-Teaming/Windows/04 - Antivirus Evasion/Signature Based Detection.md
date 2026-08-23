@@ -195,7 +195,7 @@ Parameters:
 ---
 # Bypassing Antivirus with C\#
 
-If we compile the traditional C# shellcode runner as a 64b application from [[Phishing with Jscript]] module, we can see is partially detected by AV engines (signature + heuristic):
+If we compile the traditional C# shellcode runner as a 64b application from [[Phishing with Jscript (for emails)]] module, we can see is partially detected by AV engines (signature + heuristic):
 
 > [!Note]
 > We are using an unencoded and unencrypted shellcode.
@@ -241,7 +241,7 @@ namespace Helper
 ```
 
 3. Compile the Project and execute it to output the encrypted shellcode.
-4. Replace the Shellcode with the new encrypted shellcode.
+4. Replace the Shellcode with the new encrypted shellcode (just the bytes, the size is the same).
 5. Add the decryption routine to the C# code:
 ```csharp
 using System;

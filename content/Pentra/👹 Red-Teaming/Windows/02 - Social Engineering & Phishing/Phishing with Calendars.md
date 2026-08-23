@@ -85,6 +85,11 @@ Custom email body email.html:
 <p class=MsoNormal style='background:white'><span style='color:#5F5F5F'><span style='opacity:.36'>________________________________________________________________________________</span></span><span style='mso-fareast-font-family:"Times New Roman";color:black'> <u1:p>&nbsp;</u1:p></span><span style='color:black'><o:p></o:p></span></p>
 ```
 
+Simple mail body:
+```html
+Please click in this link: http://192.168.45.161/poc.hta
+```
+
 > [!Note]
 > Check the `href` sections to replace the `[ATTACKER_URL]` placeholders with our attacker IP address.
 

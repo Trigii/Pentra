@@ -35,7 +35,7 @@ The folders are numbered to follow the operational flow of a client-side breach,
 
 - [[Pretexting]] — lure design, authority/urgency/relevance, template repos.
 - [[Phishing with Microsoft Office]] — VBA macro delivery + PowerShell shellcode runner.
-- [[Phishing with Jscript]] — WSH/JScript execution, DotNetToJScript, in-memory .NET.
+- [[Phishing with Jscript (for emails)]] — WSH/JScript execution, DotNetToJScript, in-memory .NET.
 - [[Phishing with Calendars]] — `.ics` calendar-invite delivery vector.
 - [[Client Side Attacks with File Containers (DLLs)]] — DLL side-loading via signed binaries shipped in ISO/ZIP containers.
 
@@ -102,7 +102,7 @@ A recommended review order that builds concepts before combining them. Read top-
 
 **Stage 1 — Foundations.** [[Visual Studio Setup for Development & Compilation]] → [[Antivirus Evasion]] → [[Signature Based Detection]] → [[Behavior-Heuristic Based Detection]]. Get the environment and the detection model straight first.
 
-**Stage 2 — Client-side delivery.** [[Pretexting]] → [[Phishing with Microsoft Office]] → [[Phishing with Jscript]] → [[Phishing with Calendars]] → [[Client Side Attacks with File Containers (DLLs)]]. The core initial-access chapter.
+**Stage 2 — Client-side delivery.** [[Pretexting]] → [[Phishing with Microsoft Office]] → [[Phishing with Jscript (for emails)]] → [[Phishing with Calendars]] → [[Client Side Attacks with File Containers (DLLs)]]. The core initial-access chapter.
 
 **Stage 3 — Getting past the gate.** [[Mark of the Web (MotW)]] → [[Bypassing AV in Office]]. Tie delivery to evasion.
 

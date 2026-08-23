@@ -54,3 +54,31 @@ We could use a tool such as [SharpGPOAbuse](https://github.com/FSecureLABS/Shar
 > `PS C:\> gpupdate /force`
 
 Download from here: https://github.com/byronkg/SharpGPOAbuse/releases/tag/1.0
+
+> [!Warning]
+> Abusive GPO changes are applied to **every** computer/user in the linked OU and only revert on the next `gpupdate` cycle (default up to ~90 min + random offset, or immediately with `gpupdate /force`). Note down what you changed and clean up — an "immediate scheduled task" or a startup script left behind is a loud persistence artifact.
+
+---
+
+# Abuse from Linux
+
+If we only have credentials/hash from a Linux attack host (no interactive Windows session), use [pyGPOAbuse](https://github.com/Hackndo/pyGPOAbuse) — it performs the same immediate-scheduled-task abuse over the network:
+
+```bash
+# Add the controlled user to the local Administrators group of hosts in the GPO's OU
+$ pygpoabuse.py "DOMAIN/USER:PASSWORD" -gpo-id "GPO_GUID" -command 'net localgroup administrators USER /add'
+
+# Pass-the-Hash variant
+$ pygpoabuse.py "DOMAIN/USER" -hashes :NTLM -gpo-id "GPO_GUID" -command 'whoami'
+```
+
+The GPO GUID comes from the enumeration step above (`Get-DomainGPO | select displayname,name`) or from BloodHound. To find *which* GPOs your principal can edit, BloodHound's `GPO Editors` / `WriteDacl`/`WriteProperty` edges on a `GPO` node are the fastest path — see [[AD Automatic Enumeration (BloodHound)]].
+
+---
+
+### Related notes
+- [[AD ACL Enumeration and Abuse]] — the `WriteDacl`/`WriteProperty`/`GenericWrite` ACEs over a GPO object that make this attack possible, and how to enumerate them.
+- [[AD Enumeration with PowerView]] — `Get-DomainGPO` / `Get-ObjectAcl` enumeration used above.
+- [[AD Automatic Enumeration (BloodHound)]] — visualizing GPO control edges and affected OUs/objects.
+- [[Pass the Hash (PtH)]] — reusing an NT hash for the Linux (pyGPOAbuse) path.
+- [[Service Exploits]] — abusing the privileges (SeImpersonate, etc.) granted to a user via GPO once applied.

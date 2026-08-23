@@ -198,3 +198,7 @@ Prss Command + G or follow this tutorial:
 
 https://www.youtube.com/watch?v=fDMHJn1c5Zc
 
+---
+
+If we encounter an error with Impacket scripts, we can try downgrading the version of cryptografy and openssl for python: https://github.com/fortra/impacket/issues/1716 
+

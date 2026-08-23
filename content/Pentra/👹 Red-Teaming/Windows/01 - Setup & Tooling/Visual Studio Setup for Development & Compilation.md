@@ -12,7 +12,7 @@ tags:
 This note documents the workflow for developing and compiling C# payloads (shellcode runners, injectors, DLL proxies) for Windows targets from a Kali attack machine, using a **Samba share** to bridge the filesystems. Visual Studio runs on a Windows VM with the project files stored on the shared Kali directory — edits are immediately visible to both sides.
 
 > [!Note] When you need this
-> Any technique requiring compiled C# or C++ output: [[Process Injection and Migration]], [[Phishing with Jscript]] (DotNetToJScript), [[Client Side Attacks with File Containers (DLLs)]] (DLL proxy), or custom shellcode runners.
+> Any technique requiring compiled C# or C++ output: [[Process Injection and Migration]], [[Phishing with Jscript (for emails)]] (DotNetToJScript), [[Client Side Attacks with File Containers (DLLs)]] (DLL proxy), or custom shellcode runners.
 
 ---
 # SMB Share Setup
@@ -122,6 +122,6 @@ $ python3 -m http.server 80
 ---
 # Related Notes
 - [[Process Injection and Migration]] — C# process injection tools compiled here
-- [[Phishing with Jscript]] — DotNetToJScript and C# shellcode runners compiled here
+- [[Phishing with Jscript (for emails)]] — DotNetToJScript and C# shellcode runners compiled here
 - [[Client Side Attacks with File Containers (DLLs)]] — DLL proxy compilation
 - [[Reflective PowerShell]] — in-memory alternative that skips compilation entirely

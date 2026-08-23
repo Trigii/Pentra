@@ -30,6 +30,22 @@ Validate nameservers:
 $ nslookup NAMESERVER_FQDN
 ```
 
+Dump common records and attempt a zone transfer (misconfigured DNS may leak the full internal hostname list):
+```bash
+$ dig +short ns DOMAIN            # nameservers
+$ dig +short mx DOMAIN            # mail servers (often reveal internal naming / O365 vs on-prem)
+$ dig txt DOMAIN                  # SPF/DKIM records disclose third-party services in use
+$ dig axfr DOMAIN @NAMESERVER     # zone transfer — if allowed, dumps every record
+```
+
+Passive subdomain harvesting from Certificate Transparency logs (no packets to the target):
+```bash
+$ curl -s "https://crt.sh/?q=%25.DOMAIN&output=json" | jq -r '.[].name_value' | sort -u
+```
+
+> [!Tip]
+> Subdomains found here (e.g. `mail.`, `vpn.`, `autodiscover.`, `adfs.`) frequently point at the perimeter that leads into the domain — `autodiscover`/`adfs`/`owa` hint at an on-prem or hybrid AD you can later attack. Feed discovered hosts into [[Host Discovery]] and [[Port Scanning]] once they are confirmed in scope.
+
 ---
 # Public Data
 
@@ -51,3 +67,11 @@ $ sudo python3 dehashed.py -q DOMAIN_FQDN -p
 
 > [!Note]
 > The script used in the example above can be found [here](https://github.com/mrb3n813/Pentest-stuff/blob/master/dehashed.py). Due to changes in the API structure of DeHashed, modifications may be necessary. Alternatively, the following [script](https://github.com/sm00v/Dehashed) could be used. Before executing the script, it is crucial to become familiar with its functionality.
+
+---
+### Related notes
+- [[Active Directory Penetration Testing]] — the overall AD methodology this recon feeds into.
+- [[AD Initial Foothold]] — turning harvested usernames/credentials into first access.
+- [[AD Password Spraying]] — the natural next step once you have a username list and a candidate password.
+- [[Passive Information Gathering]] — general OSINT techniques (this note is the AD-focused subset).
+- [[Host Discovery]] / [[Port Scanning]] — active enumeration of the in-scope hosts identified here.

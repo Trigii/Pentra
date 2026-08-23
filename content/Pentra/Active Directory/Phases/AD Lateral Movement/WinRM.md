@@ -111,3 +111,31 @@ PS C:\> Enter-PSSession -ComputerName DEV01 -Credential INLANEFREIGHT\backupadm 
 
 [DEV01]: PS C:\Users\Public> get-domainuser -spn | select samaccountname # we can now run PowerView from the session and query the DC
 ```
+
+---
+
+# Enumerate WinRM before authenticating
+
+WinRM listens on **TCP 5985 (HTTP)** and **TCP 5986 (HTTPS)**. Confirm it is open and test credentials/hashes from Linux before jumping in:
+
+```bash
+# Discover the WinRM listeners
+$ nmap -Pn -sV -p 5985,5986 TARGET_IP
+
+# Validate creds or an NTLM hash and check for (Pwn3d!) => Evil-WinRM will work
+$ nxc winrm TARGET_IP -u USER -p PASSWORD
+$ nxc winrm TARGET_IP -u USER -H NTLM_HASH
+```
+
+> [!Tip]
+> Evil-WinRM accepting `-H NTLM_HASH` makes WinRM a natural follow-up to [[Pass the Hash (PtH)]]: no cleartext password required. If you only have a Kerberos ticket, Evil-WinRM also supports `-r DOMAIN` for Kerberos auth (`export KRB5CCNAME=ticket.ccache` first — see [[Pass the Ticket (PtT)]]).
+
+---
+
+### Related notes
+- [[Pass the Hash (PtH)]] — reach a WinRM session with just an NTLM hash
+- [[Pass the Ticket (PtT)]] — Kerberos-based auth into WinRM
+- [[Enter-PSSession]] — the native PowerShell remoting cmdlet used throughout this note
+- [[AD Enumeration with PowerView]] — the PowerView queries whose Double Hop failures are solved here
+- [[Kerberoasting]] — `get-domainuser -spn` (used in the examples) is the first step of Kerberoasting
+- [[AD Automatic Enumeration (BloodHound)]] — the `CanPSRemote` edge maps WinRM access across the domain

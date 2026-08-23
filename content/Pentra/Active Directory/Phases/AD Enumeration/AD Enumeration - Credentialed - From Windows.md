@@ -50,3 +50,37 @@ Parameters:
 -v: verbosity
 
 ```
+
+- Built-in `net` commands (no tooling required, blends in with normal admin activity — useful as [[AD Enumeration (LOTL)|living-off-the-land]]):
+```cmd
+C:\> net user /domain                 # list all domain users
+C:\> net user USERNAME /domain        # detail a single user (groups, logon hours, last set)
+C:\> net group /domain                # list all domain groups
+C:\> net group "Domain Admins" /domain  # members of a privileged group
+C:\> net accounts /domain             # domain password & lockout policy
+```
+
+- PowerView (richer object queries — full command set in [[AD Enumeration with PowerView]]):
+```powershell
+PS C:\> Import-Module .\PowerView.ps1
+PS C:\> Get-DomainUser -Properties samaccountname,description | Where-Object {$_.description}  # passwords in descriptions
+PS C:\> Get-DomainComputer -Properties dnshostname,operatingsystem
+PS C:\> Get-DomainUser -SPN                       # kerberoastable accounts (feed into [[Kerberoasting]])
+PS C:\> Get-DomainUser -PreauthNotRequired        # AS-REP roastable accounts (see [[AS-REP Roasting]])
+```
+
+- SharpHound (collect graph data to analyse in [[AD Automatic Enumeration (BloodHound)|BloodHound]]):
+```powershell
+PS C:\> .\SharpHound.exe -c All -d DOMAIN_FQDN --zipfilename loot
+# Then import the resulting .zip into the BloodHound GUI to map attack paths.
+```
+
+> [!Tip]
+> Cleartext creds, an NTLM hash or a Kerberos ticket unlock the whole credentialed workflow. From here, pivot to targeted attacks: [[Kerberoasting]], [[AS-REP Roasting]], [[AD ACL Enumeration and Abuse]] and [[AD DCSync]].
+
+### Related notes
+- [[AD Enumeration - Credentialed - From Linux]] — the equivalent workflow from a Linux attack host.
+- [[AD Enumeration with PowerView]] — deep-dive on PowerView queries.
+- [[AD Automatic Enumeration (BloodHound)]] — graph-based attack-path discovery.
+- [[AD Domain Enumeration]] — domain-wide enumeration objectives.
+- [[AD Enumeration (LOTL)]] — living-off-the-land enumeration with native tools.

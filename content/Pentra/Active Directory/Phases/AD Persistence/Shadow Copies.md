@@ -96,3 +96,34 @@ or
 
 mimikatz # kerberos::purge
 ```
+
+---
+
+# After dumping NTDS.dit
+
+Once `impacket-secretsdump` has parsed the database, you hold the NTLM hash of **every** domain account, including `krbtgt`. That opens several follow-up paths:
+
+- Reuse any hash directly with [[Pass the Hash (PtH)]] for lateral movement.
+- Crack the extracted NTLM hashes offline to recover cleartext passwords:
+```bash
+$ hashcat -m 1000 ntlm_hashes.txt /usr/share/wordlists/rockyou.txt
+```
+- Forge a **Golden Ticket** from the `krbtgt` hash for long-term domain persistence (see [[Silver Ticket]] for the ticket-forging workflow; a Golden Ticket forges a TGT instead of a service ticket).
+
+> [!Tip]
+> A shadow copy is a **noisy, high-privilege** action. If you already control a Domain Admin session and only need the hashes, [[AD DCSync]] pulls them straight from the DC over the MS-DRSR replication protocol without writing any files to disk — usually stealthier than staging `ntds.dit` on `C:\`.
+
+> [!Warning]
+> Creating a volume shadow copy and dropping `ntds.dit` / SYSTEM hive on disk generates Event IDs (e.g. 8222 VSS, plus file-creation telemetry). Clean up the `.bak` files and the shadow copy afterwards:
+> ```powershell
+> PS C:\> vssadmin delete shadows /for=C: /oldest
+> PS C:\> del C:\ntds.dit.bak, C:\system.bak
+> ```
+
+---
+
+### Related notes
+- [[AD DCSync]] — fileless credential extraction from the DC (stealthier alternative).
+- [[Pass the Hash (PtH)]] — reusing the recovered NTLM hashes.
+- [[Silver Ticket]] — Kerberos ticket forging with recovered keys.
+- [[Active Directory Penetration Testing]] — where this fits in the overall AD kill chain.

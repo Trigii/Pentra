@@ -48,10 +48,22 @@ PS C:\> ([adsi]'').distinguishedName
 $ ldapsearch -v -x -b “DC=DOMAIN_CN,DC=DOMAIN_NAME” -H “ldap://TARGET_IP” “(objectclass=*)”
 ```
 
-- Users + Description Enumeration:
+- Users + Description Enumeration (descriptions frequently leak passwords or hints):
 ```bash
+# ldapsearch: dump every user's sAMAccountName and description in one query
+$ ldapsearch -x -H ldap://DC_IP -D "DOMAIN\\USER" -w 'PASSWORD' \
+    -b "DC=DOMAIN_CN,DC=DOMAIN_NAME" \
+    "(&(objectClass=user)(objectCategory=person))" sAMAccountName description
 
+# NetExec / CrackMapExec: quick user + description sweep
+$ netexec ldap DC_IP -u USER -p 'PASSWORD' --users
+
+# PowerView (from a domain-joined Windows host)
+PS C:\> Get-DomainUser * | Select-Object samaccountname, description | Where-Object {$_.description}
 ```
+
+> [!Tip]
+> Descriptions are a classic quick win — grep the output for `pass`, `pwd`, `temp`, `welcome`. Feed any hits straight into [[AD Password Spraying]].
 
 - Script:
 ```powershell
@@ -99,3 +111,12 @@ $ adidnsdump -u DOMAIN_NAME\\USERNAME ldap://DC_IP -r # enumerate records
 
 $ head records.csv # view the contents
 ```
+
+---
+
+### Related notes
+- [[AD Enumeration with PowerView]] — deeper PowerView-based enumeration.
+- [[AD Enumerating Users]] — user-focused enumeration and validation.
+- [[AD Automatic Enumeration (BloodHound)]] — graph the whole domain automatically.
+- [[AD Enumeration - Credentialed - From Linux]] — the Linux-side equivalent (ldapsearch, NetExec, rpcclient).
+- [[AD Password Spraying]] — natural next step once you have a user list.

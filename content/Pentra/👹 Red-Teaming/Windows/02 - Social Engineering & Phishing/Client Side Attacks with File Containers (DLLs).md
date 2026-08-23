@@ -48,7 +48,7 @@ Apply filters, then launch the binary and watch for NAME_NOT_FOUND DLL loads.
 
 ![[Pasted image 20260628230333.png]]
 
-In this example, the target DLL is **Secur32.dll**.
+In this example, the target DLL is **Secur32.dll**. If there is more than one DLL, we will need to do trial and error until we find a DLL that doesnt crash the application.
 
 ---
 # Step 2 — Understand DLL Proxying

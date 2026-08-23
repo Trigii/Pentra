@@ -262,8 +262,6 @@ Verify with WinDbg:
 > [!Note]
 > Patching `AmsiScanBuffer` directly controls the scan result rather than the session setup. Both patch points are equally detectable; choose based on which is less signatured in the target environment.
 
-
-
 ---
 # Related Notes
 

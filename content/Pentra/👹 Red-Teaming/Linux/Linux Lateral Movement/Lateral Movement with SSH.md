@@ -28,6 +28,8 @@ DEK-Info: AES-128-CBC,351CBB3ECC54B554DD07029E2C377380
 
 - Check possible machines where the discovered private keys may be usable:
 ```bash
+# spray the private keys on all possible machines with all possible combinations of users.
+
 # current machine
 cat /etc/passwd # find users that could use the discovered SSH key for entering the current machine
 
