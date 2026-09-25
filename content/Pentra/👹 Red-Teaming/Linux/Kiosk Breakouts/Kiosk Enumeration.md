@@ -2,6 +2,11 @@
 title: Kiosk Enumeration
 draft: false
 tags:
+  - red-team
+  - offensive
+  - linux
+  - kiosk
+  - breakout
 ---
  
 Interactive [_kiosks_](https://en.wikipedia.org/wiki/Interactive_kiosk) are computer systems that are generally intended to be used by the public for tasks such as Internet browsing, registration, or information retrieval.

@@ -126,7 +126,7 @@ class Loader {
 # Relacionado
 
 - [[Kali VM Preparation]] — setup del atacante (Kali).
-- [[content/Pentra/👹 Red-Teaming/Windows/Phishing with Microsoft Office]] — macros VBA como vector de entrega.
+- [[Phishing with Microsoft Office]] — macros VBA como vector de entrega.
 - [[Process Injection]] — técnicas para inyectar shellcode.
 - [[AV Evasion]] — evasión de antivirus y EDR.
 - [[Basic Windows Concepts]] — WOW64, Win32 API, registro (base para entender el entorno).

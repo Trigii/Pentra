@@ -83,7 +83,7 @@ PS> Test-AdminAccess -ComputerName ACADEMY-EA-MS01 (test if the current user is 
 ```
 
 > [!Note]
-> Admin rights on computers allow users to gain RCE in several ways: RDP (recommended), WinRM, WMI.... They can also impersonate other users.
+> Admin rights on computers allow users to gain RCE in several ways: [[RDP]] (recommended), [[WinRM]], [[WMI]].... They can also impersonate other users. See [[Impacket]] and [[Enter-PSSession]] for remote execution once local admin is confirmed.
 
 - Enumerate users are loged in to a specified computer: 
 ```powershell
@@ -126,6 +126,8 @@ PS> Get-NetGroup -userName "USER" | select name (display groups that the USER be
 Important:
 PS> Get-DomainGroupMember -Identity "Domain Admins" -Recurse (enumerate users whom belong to a group. Recurse flag will enumerate groups that are part of the target group, and therefore, inherit the permissions)
 
+# use with -Domain "TARGET_DOMAIN" for enumerating a different domain
+
 Additional commands:
 C:\> net group "GROUP" USER /add /domain # add user to a group (ACL Write permissions required)
 ```
@@ -165,6 +167,9 @@ Important: there is a folder called Polices that contains interesting informatio
 PS C:\> gpp-decrypt "ENCRYPTED_PASSWORD"
 ```
 
+> [!Tip]
+> Any credentials or usernames recovered from SYSVOL / GPP feed directly into a [[AD Password Spraying]] attack. For a broader look at share hunting (not just SYSVOL) see [[AD Share Enumeration]].
+
 > [!NOTE] 
 > The **SYSVOL** share is an important share as it is responsible for storing and replicating important domain-related data and files, such as Group Policy Objects (GPOs) and logon scripts. The SYSVOL share is automatically created on each domain controller in an Active Directory domain and is shared by default. It serves as a central repository for GPOs, which are used to manage security policies, software deployment, and other configuration settings across the domain. All the domain computers access this share to check the domain policies.
 > 
@@ -201,6 +206,9 @@ PS> Get-ObjectAcl -Identity "USERNAME" (obtain ACEs for a specific user)
 
 PS> Get-ObjectAcl -SamAccountName "OBJECT" -ResolveGUIDs | ? {$_.ActiveDirectoryRights -eq "GenericAll"} (Search for a specific Active Directory right associated with the specified object)
 Note that **GenericAll** is a highly permissive right that typically provides full control over the object.
+
+> [!Note]
+> ACL abuse (GenericAll/GenericWrite/WriteDACL/ForceChangePassword chains) has its own dedicated note with worked examples: see [[AD ACL Enumeration and Abuse]].
 
 Alternative: search for a specific AD right associated with a specific Object:
 PS C:\> Get-ObjectAcl -Identity "OBJECT" | ? {$_.ActiveDirectoryRights -eq "GenericAll"} | select SecurityIdentifier,ActiveDirectoryRights
@@ -248,3 +256,16 @@ PS> Get-NetUser -PreauthNotRequired | select samaccountname, useraccountcontrol 
 > [!Note]
 > As an alternative, SharpView can be used for AD enumeration just like PowerView:
 > - Enumerate info about a user: `PS> .\SharpView.exe Get-DomainUser -Identity forend`
+
+> [!Tip]
+> The SPN and pre-auth queries above are the enumeration step for two offline-cracking attacks: feed the kerberoastable accounts into [[Kerberoasting]] and the AS-REP roastable ones into [[AS-REP Roasting]].
+
+### Related notes
+- [[Active Directory Penetration Testing]] — overall AD methodology and where enumeration fits
+- [[AD Enumerating Users]] / [[AD Enumerating Groups]] — focused user/group enumeration workflows
+- [[AD Share Enumeration]] — hunting shares and SYSVOL for credentials
+- [[AD Password Spraying]] — using harvested usernames against the domain
+- [[AD ACL Enumeration and Abuse]] — abusing the ACLs/ACEs discovered here
+- [[AD Domain Trust Abuse]] — pivoting across the trusts enumerated with `Get-DomainTrust`
+- [[Kerberoasting]] / [[AS-REP Roasting]] — offline attacks against the SPN / no-preauth accounts
+- [[AD Security Controls Enumeration]] — check defenses before running noisy queries

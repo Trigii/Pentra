@@ -2,6 +2,12 @@
 title: Privileged Escalation
 draft: false
 tags:
+  - red-team
+  - offensive
+  - linux
+  - kiosk
+  - breakout
+  - privilege-escalation
 ---
  
 One approach is to leverage the _Basic Linux Privilege Escalation_ techniques outlined by [g0tmi1k](https://blog.g0tmi1k.com/2011/08/basic-linux-privilege-escalation/).

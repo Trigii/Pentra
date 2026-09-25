@@ -148,3 +148,14 @@ OIDC match strings:
 > - `(&(objectClass=user)(userAccountControl:1.2.840.113556.1.4.803:=64))` -> the object must be a user and combines it with searching for a UAC bit value of 64 (Password Can't Change)
 > - `(&(objectClass=user)(!userAccountControl:1.2.840.113556.1.4.803:=64))` -> search for any user object that does `NOT` have the Password Can't Change attribute set.
 
+> [!Note]
+> **LOTL (Living Off The Land)** means enumerating with binaries already present on the host (`net`, `wmic`, `dsquery`, native PowerShell) instead of dropping tooling like PowerView or SharpHound. This is stealthier against EDR/AV but slower and less complete — pair it with the dedicated enumeration notes below once you need deeper data.
+
+### Related notes
+- [[Active Directory Penetration Testing]] — overview and methodology
+- [[AD Enumeration with PowerView]] — richer domain enumeration when you can drop tooling
+- [[AD Enumerating Users]] — user objects and attributes
+- [[AD Enumerating Groups]] — group membership and nested groups
+- [[AD Share Enumeration]] — finding and looting shares
+- [[AD Security Controls Enumeration]] — AV/EDR, AppLocker, defenses to expect
+- [[AD Password Spraying]] — turning enumerated users into access

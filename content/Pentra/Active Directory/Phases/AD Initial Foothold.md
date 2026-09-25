@@ -108,12 +108,12 @@ STOP (stop Inveight)
 
 # LDAP
 
-Check [[LDAP]] enumeration section for more information
+- Check [[LDAP]] enumeration section for more information
 
 # RPC
 
-Check [[content/Pentra/☠️ Classic Pentesting/1 - Information Gathering/Active Information Gathering/Services/RPC|RPC]] enumeration section for more information
+- Check [[content/Pentra/☠️ Classic Pentesting/1 - Information Gathering/Active Information Gathering/Services/RPC|RPC]] enumeration section for more information
 
 # SMB
 
-Check [[SMB]] enumeration section for more information
+- Check [[SMB]] enumeration section for more information

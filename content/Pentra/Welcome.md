@@ -2,6 +2,8 @@
 title: Welcome
 draft: false
 tags:
+  - index
+  - moc
 ---
   
 This Vault contains the ultimate Cheatsheet for pentesting. It will be updated with new information regularly. Currently it has the sufficient knowledge to pass beginner and intermediate exams like:

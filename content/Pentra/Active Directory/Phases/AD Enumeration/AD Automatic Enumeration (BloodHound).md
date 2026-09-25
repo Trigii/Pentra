@@ -19,8 +19,12 @@ tags:
 ```shell
 1. Run the collector:
 $ sudo bloodhound-python -u 'USERNAME' -p 'PASSWORD' -ns TARGET_IP -d DOMAIN_FQDN -c all (start the collector and obtain all the metrics as possible)
+# ns has to be the target domain DC IP we are enumerating
 
-# -k -no-pass for Kerberos
+# Kerberos
+$ sudo bloodhound-python -ns DC_IP -d DOMAIN_FQDN -c all -u USER@DOMAIN_FQDN -k -no-pass
+
+# USER@DOMAIN_FQDN must match the kerberos ticket
 
 2. Start the neo4j service to load the collected data:
 $ sudo neo4j start
@@ -52,6 +56,9 @@ PS> powershell -ep bypass
 PS> . .\SharpHound.ps1
 PS> Invoke-Bloodhound -CollectionMethod All
 PS> Invoke-BloodHound -CollectionMethod All -OutputDirectory C:\Users\<USER>\Desktop\ -OutputPrefix "DOMAIN audit" # for better output
+
+# Cross-Forest/Trusted Domain enumeration
+PS C:\> Invoke-Bloodhound -CollectionMethod All -Domain TARGET_DOMAIN
 
 + ALTERNATIVE +
 PS> .\SharpHound.exe -c All --zipfilename NAME
@@ -113,12 +120,24 @@ MATCH (m:User) RETURN m
 
 3. Enumerate domain user active sessions in domain computers
 MATCH p = (c:Computer)-[:HasSession]->(m:User) RETURN p
-
 ```
 
 Recommended queries:
-1. Kerberoastable Users -> hang fruit
-2. AS-REP roastable Users -> hang fruit
+1. Kerberoastable Users -> hang fruit (feed the results into [[Kerberoasting]])
+2. AS-REP roastable Users -> hang fruit (feed the results into [[AS-REP Roasting]])
 3. Shortes paths from Owned Objects -> use every time we set a new owned object
 4. Shortes paths to systems trusted from unconstrained delegation
+
+> [!Tip]
+> BloodHound is the fastest way to spot **abusable ACL edges** (`ForceChangePassword`, `GenericAll`, `GenericWrite`, `WriteDacl`, `AddMember`). Right-click any edge and read the **Help → Abuse Info** tab: it gives the exact tool/command to exploit that relationship. Cross-reference with [[AD ACL Enumeration and Abuse]] for the manual equivalents.
+
+> [!Note]
+> **BloodHound Community Edition (CE)** replaced the legacy neo4j-desktop workflow above. It ships as a Docker Compose stack (`bloodhound-cli` / `docker compose up`), exposes a web UI on `http://localhost:8080`, and ingests the **same SharpHound/bloodhound-python zip**. The collectors and the tradecraft in this note are unchanged — only the ingestion UI differs.
+
+### Related notes
+- [[AD Enumeration with PowerView]] — manual, LOTL enumeration when you can't drop a collector.
+- [[AD ACL Enumeration and Abuse]] — exploiting the ACL edges BloodHound surfaces.
+- [[Kerberoasting]] / [[AS-REP Roasting]] — acting on the "roastable users" pre-built queries.
+- [[Silver Ticket]] — post-DCSync persistence once you own the domain.
+- [[Clock Skew]] — fix `KRB_AP_ERR_SKEW` before running Kerberos-based collection with `-k`.
 

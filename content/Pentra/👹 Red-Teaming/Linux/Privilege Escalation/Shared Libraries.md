@@ -2,6 +2,10 @@
 title: Shared Libraries
 draft: false
 tags:
+  - red-team
+  - offensive
+  - linux
+  - privilege-escalation
 ---
  
 > [!Summary]

@@ -2,6 +2,10 @@
 title: Clock Skew
 draft: false
 tags:
+  - active-directory
+  - kerberos
+  - enumeration
+  - active
 ---
  
 1. Enumerate the DC clock:

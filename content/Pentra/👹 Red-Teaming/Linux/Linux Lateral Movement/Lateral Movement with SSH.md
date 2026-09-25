@@ -2,8 +2,17 @@
 title: Lateral Movement with SSH
 draft: false
 tags:
+  - linux
+  - lateral-movement
+  - post-exploitation
+  - ssh
+  - persistence
+  - credentials
 ---
  
+> [!Note]
+> SSH is the primary lateral-movement channel on Linux. The workflow is: enumerate for keys and known hosts ([[Linux Enumeration]]), harvest/crack keys, spray them across reachable hosts, and hijack live sessions. Keys found here often unlock DevOps controllers too — see [[DevOps]]. When target hosts aren't directly reachable, tunnel through the pivot with [[SSH Local Port Forwarding]] / [[SSH Dynamic Port Forwarding]] (overview in [[Pivoting and Port Forwarding]]).
+
 Although some systems still permit password authentication to connect to a Linux machine via SSH, many require public [key authentication](https://www.ssh.com/ssh/public-key-authentication) instead. This method requires a user-generated public and private key pair. The public key is stored in the **~/.ssh/authorized_keys** file of the server the user is connecting to. The private key is typically stored in the **~/.ssh/** directory on the system the user is connecting from.
 
 > [!Requirements]
@@ -277,3 +286,12 @@ $ SSH_AUTH_SOCK=/tmp/ssh-7OgTFiQJhL/agent.16380 ssh-add -l
 # Re-set the environment variable for the socket and then can SSH to the target host as the victim user:
 $ SSH_AUTH_SOCK=/tmp/ssh-7OgTFiQJhL/agent.163 ssh offsec@linuxvictim
 ```
+
+---
+### Related notes
+- [[Linux Enumeration]] — finding keys, `known_hosts`, `.bash_history` and live SSH sessions
+- [[Linux Dumping and Cracking Credentials]] — cracking passphrase-protected keys (ssh2john)
+- [[DevOps]] — Ansible/CI keys that grant SSH access to many nodes
+- [[Pivoting and Port Forwarding]] — tunnelling to hosts not directly reachable
+- [[SSH Local Port Forwarding]] / [[SSH Dynamic Port Forwarding]] — SSH-based tunnels
+- [[Linux Privilege Escalation]] — escalate once on the next host

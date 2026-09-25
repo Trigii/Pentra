@@ -152,3 +152,30 @@ $ hashcat --help | grep -i "Kerberos"
 ```bash
 $ sudo hashcat -m 18200 hashes.asreproast /usr/share/wordlists/rockyou.txt -r /usr/share/hashcat/rules/best64.rule --force
 ```
+
+---
+
+## Hashcat / John format reference (RC4 vs AES)
+
+The `etype` (encryption type) embedded in the retrieved hash determines the cracking mode. You can tell it apart from the number right after `$krb5asrep$` in the hash string (e.g. `$krb5asrep$23$user@DOMAIN:...`).
+
+| Encryption (etype) | Hash prefix | hashcat mode | John format |
+| ------------------ | ---------------- | ------------ | ----------- |
+| RC4-HMAC (etype 23) | `$krb5asrep$23$` | `18200` | `krb5asrep` |
+| AES128 pre-auth (etype 17) | `$krb5pa$17$` | `19800` | — |
+| AES256 pre-auth (etype 18) | `$krb5pa$18$` | `19900` | — |
+
+> [!Tip]
+> AS-REP Roasting almost always yields the **RC4** hash (`18200`), and RC4 cracks *much* faster than AES. This is exactly why we pass `--downgrade` to Kerbrute (forces the DC to answer with the weaker RC4 etype). If the environment enforces AES-only and you only capture etype 17/18 material, fall back to modes `19800`/`19900`.
+
+> [!Note]
+> These modes are specific to **AS-REP Roasting**. [[Kerberoasting]] extracts service-ticket hashes and therefore uses different modes: `13100` (RC4 / TGS-REP etype 23), `19600` (AES128) and `19700` (AES256).
+
+---
+
+### Related notes
+- [[Kerberoasting]] — the sibling Kerberos attack that targets service accounts (SPNs) instead of pre-auth-disabled users; same offline-cracking workflow.
+- [[AD Enumerating Users]] — build the valid-user list that feeds unauthenticated `GetNPUsers.py` enumeration.
+- [[AD Password Spraying]] — the recovered plaintext passwords are a natural input for spraying across the domain.
+- [[AD ACL Enumeration and Abuse]] — how to spot (and abuse) `GenericWrite`/`GenericAll` to *enable* the "do not require pre-auth" flag on a target account.
+- [[Impacket]] — reference for `GetNPUsers.py` and authenticating with a recovered password/hash (PtH).

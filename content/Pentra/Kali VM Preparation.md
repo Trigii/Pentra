@@ -2,6 +2,8 @@
 title: Kali VM Preparation
 draft: false
 tags:
+  - setup
+  - environment
 ---
  
 Software installation:
@@ -202,3 +204,22 @@ https://www.youtube.com/watch?v=fDMHJn1c5Zc
 
 If we encounter an error with Impacket scripts, we can try downgrading the version of cryptografy and openssl for python: https://github.com/fortra/impacket/issues/1716 
 
+---
+
+# BurpSuite NTLM authentication
+
+If we get connection reset error when using BurpSuite for a web site that requires NTLM authentication we have to:
+
+1. Open Burp Suite and go to **Settings** (or _Project options_ depending on your version)
+2. Navigate to **Network** and select **Connections**
+3. Find the **Platform authentication** section
+4. Click **Add** or **Add credentials**
+5. Enter your target details:
+    - **Destination host**: The address of the web server.
+    - **Authentication type**: Choose **NTLMv1** or **NTLMv2**.
+    - **Username**: Your domain username.
+    - **Password**: Your account password.
+    - **Domain**: Your Windows domain name.
+    - **Domain hostname**: The name of your domain controller/server (if required)
+
+![[Pasted image 20260917224325.png]]

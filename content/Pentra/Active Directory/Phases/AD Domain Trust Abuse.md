@@ -50,6 +50,9 @@ PS C:\> Get-DomainTrustMapping
 ```
 
 > [!Note]
+> These are the same trust queries covered in [[AD Enumeration with PowerView]] — start there for full-domain enumeration before focusing on trusts.
+
+> [!Note]
 > Check the `ForestTransitive` property. If its set to true, it means that it is a forest trust or external trust, so maybe we can leverage it to access a different domain and gain domain admin privileges to the current domain.
 
 - Enumerating trust domain DC:
@@ -119,7 +122,7 @@ PS C:\> Get-ADGroup -Identity "Enterprise Admins" -Server "PARENT_DOMAIN_FQDN"
 PS C:\> ls \\academy-ea-dc01.inlanefreight.local\c$
 ```
 
-6. Create a Golden Ticket:
+6. Create a Golden Ticket (see [[Golden Ticket]] for the full technique and defenses):
 ```powershell
 + USING MIMIKATZ +
 PS C:\> mimikatz.exe
@@ -226,7 +229,7 @@ $ raiseChild.py -target-exec PARENT_DC_IP CHILD_DOMAIN_FQDN/CHILD_DOMAIN_ADMIN_U
 
 **Cross-Forest Kerberoasting**
 
-Perform kerberoasting/ASREProasting on a user that belongs to a different domain in a different forest but has Domain Admin rights.
+Perform kerberoasting/ASREProasting on a user that belongs to a different domain in a different forest but has Domain Admin rights. See [[Kerberoasting]] and [[AS-REP Roasting]] for the base techniques and hashcat modes.
 
 > [!Requirements]
 > You are positioned in a domain with either an inbound or bidirectional domain/forest trust.
@@ -365,3 +368,14 @@ zip -r data2.zip *.json
 
 7. Upload the zip files to BloodHound
 8. Run the query `Users with Foreign Domain Group Membership` and select the **current domain** as the source domain
+
+---
+
+### Related notes
+- [[Active Directory Penetration Testing]] — where trust abuse sits in the overall AD methodology
+- [[AD Enumeration with PowerView]] — trust and domain enumeration that precedes these attacks
+- [[Golden Ticket]] — forged TGT used in the ExtraSIDs child→parent attack
+- [[Kerberoasting]] / [[AS-REP Roasting]] — base techniques for cross-forest roasting
+- [[Impacket]] — `secretsdump.py`, `lookupsid.py`, `ticketer.py`, `raiseChild.py`, `psexec.py`
+- [[Enter-PSSession]] — accessing a target DC via foreign group membership
+- [[Kerberos Delegation]] — another cross-domain privilege escalation avenue
