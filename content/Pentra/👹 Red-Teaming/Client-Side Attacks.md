@@ -468,4 +468,4 @@ $ hashcat -m 5600 captured_hash.txt /usr/share/wordlists/rockyou.txt
 - [[Phishing with Calendars]] — ICS calendar phishing
 - [[Pretexting]] — social engineering and lure design
 - [[Command and Control (C2-C&C)]] — post-exploitation after getting a shell
-- [[AV Evasion]] — payload obfuscation to bypass AV on delivery
+- [[Antivirus Evasion]] — payload obfuscation to bypass AV on delivery

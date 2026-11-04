@@ -103,14 +103,24 @@ Used for backward compatibility (challenge-response with the NTLM hash of the us
 
 1. [[AD External Recon and Enumeration Principles]]
 
-2. [[AD Enumeration]]
+2. **AD Enumeration** — mapping the domain once you have network access or a foothold
+	- Domain & objects: [[AD Domain Enumeration]], [[AD Enumerating Users]], [[AD Enumerating Groups]], [[AD Enumerating Hosts]], [[AD Share Enumeration]]
+	- Credentialed tooling: [[AD Enumeration - Credentialed - From Linux]], [[AD Enumeration - Credentialed - From Windows]], [[AD Enumeration with PowerView]], [[AD Linux Enumeration]]
+	- Automatic / low-noise: [[AD Automatic Enumeration (BloodHound)]], [[AD Enumeration (LOTL)]], [[AD Security Controls Enumeration]]
+	- Credential attacks: [[AD Password Policy Enumeration]], [[AD Password Spraying]]
+	- Prerequisite for Kerberos work: [[Clock Skew]]
 
-3. [[AD Privilege Escalation]]
+3. **AD Privilege Escalation** — [[Kerberoasting]], [[AS-REP Roasting]], [[Backup Operators Group]]
 
-4. [[AD Lateral Movement]]
+4. **AD Lateral Movement**
+	- Credential / ticket reuse: [[Pass the Hash (PtH)]], [[Pass the Ticket (PtT)]], [[NetNTLMv2]], [[Pre2K]]
+	- Remote execution: [[WinRM]], [[Enter-PSSession]], [[WMI]], [[DCOM]], [[RDP]], [[RPC]], [[Impacket]], [[SQL Server Admin]]
 
-5. [[AD Persistence]]
+5. **AD Persistence** — [[Golden Ticket]], [[Silver Ticket]], [[Shadow Copies]]
 
 6. [[AD ACL Enumeration and Abuse]]
 
 7. [[AD Domain Trust Abuse]]
+
+> [!Note]
+> These phases are iterative rather than strictly linear — enumeration continues throughout the engagement, and lateral movement usually feeds back into more enumeration and privilege escalation. Related cross-cutting techniques worth keeping in view: [[AD DCSync]], [[AD GPO Abuse]], [[ADIDNS Spoofing]], [[Kerberos Delegation]], [[Attacking Active Directory Certificate Services]] and the forest/trust notes [[Active Directory Forest]] / [[Active Directory Trust Between Forests]].

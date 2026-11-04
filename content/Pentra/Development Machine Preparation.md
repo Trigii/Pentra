@@ -36,7 +36,7 @@ PS> Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -Recurse | 
 > Compila los proyectos en **Release / x64** salvo que el target sea x86. Para shellcode injection, presta atención al bitness del proceso víctima (ver [[Basic Windows Concepts]]).
 
 Paquetes NuGet útiles para payloads:
-- `DInvoke` / `D/Invoke` — dynamic P/Invoke para evasión de hooks (ver [[Process Injection]]).
+- `DInvoke` / `D/Invoke` — dynamic P/Invoke para evasión de hooks (ver [[Process Injection and Migration|Process Injection]]).
 - `SharpSploit` — librería ofensiva en C# para múltiples técnicas.
 
 ---
@@ -119,7 +119,7 @@ class Loader {
 ```
 
 > [!Caution]
-> `PAGE_EXECUTE_READWRITE (0x40)` en VirtualAlloc es muy ruidoso para AV/EDR. En escenarios reales, separa la asignación (RW) de la ejecución (RX) con `VirtualProtect`. Ver [[Process Injection]] y [[AV Evasion]].
+> `PAGE_EXECUTE_READWRITE (0x40)` en VirtualAlloc es muy ruidoso para AV/EDR. En escenarios reales, separa la asignación (RW) de la ejecución (RX) con `VirtualProtect`. Ver [[Process Injection and Migration|Process Injection]] y [[Antivirus Evasion]].
 
 ---
 
@@ -127,6 +127,6 @@ class Loader {
 
 - [[Kali VM Preparation]] — setup del atacante (Kali).
 - [[Phishing with Microsoft Office]] — macros VBA como vector de entrega.
-- [[Process Injection]] — técnicas para inyectar shellcode.
-- [[AV Evasion]] — evasión de antivirus y EDR.
+- [[Process Injection and Migration|Process Injection]] — técnicas para inyectar shellcode.
+- [[Antivirus Evasion]] — evasión de antivirus y EDR.
 - [[Basic Windows Concepts]] — WOW64, Win32 API, registro (base para entender el entorno).

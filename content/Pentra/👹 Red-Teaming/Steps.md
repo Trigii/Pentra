@@ -15,6 +15,8 @@ meterpreter> execute -H -f notepad # create a hidden notepad process
 meterpreter> migrate NOTEPAD_PID # migrate into the new process
 ```
 
+Identify security checks: https://github.com/GhostPack/Seatbelt
+
 4. Run the WinPEAS and the [HostRecon](https://github.com/dafthack/HostRecon) script to enumerate the AV in place:
 ```powershell
 meterpreter> shell

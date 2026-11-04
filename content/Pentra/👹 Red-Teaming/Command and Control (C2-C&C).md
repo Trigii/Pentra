@@ -186,10 +186,10 @@ meterpreter> hashdump               # dump local hashes
 > - `mimikatz/lsadump` is heavily signatured — consider using AMSI bypass or an obfuscated Mimikatz variant first.
 > - `invoke_metasploitpayload` drops a PowerShell stager that is commonly detected. Use an obfuscated or stageless payload when AV is active.
 > - Migrating into `lsass.exe` is high-risk and noisy — prefer migrating into `explorer.exe` or `svchost.exe` for persistence.
-> - Use [[AV Evasion]] techniques before running post-exploitation modules on a hardened target.
+> - Use [[Antivirus Evasion]] techniques before running post-exploitation modules on a hardened target.
 
 ---
 # Related Notes
 - [[Client-Side Attacks]] — initial access techniques to get the first shell
 - [[Phishing with Microsoft Office]] — Office macro payloads for initial access
-- [[AV Evasion]] — obfuscation and evasion before/during C2 operations
+- [[Antivirus Evasion]] — obfuscation and evasion before/during C2 operations

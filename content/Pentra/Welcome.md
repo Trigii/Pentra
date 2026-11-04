@@ -30,6 +30,11 @@ This Vault contains the ultimate Cheatsheet for pentesting. It will be updated w
 # Red Teaming (alpha version)
 
 1. [[Client-Side attacks]]
+2. [[Command and Control (C2-C&C)]]
+
+See also the structured Red-Teaming workflow and the Windows chain index:
+- [[Steps]] — end-to-end red team methodology
+- [[00 - Index (MOC)]] — Windows red-teaming map (setup → phishing → AV/AMSI/UAC bypass → post-exploitation)
 
 
 > [!Warning]- Disclaimer

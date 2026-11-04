@@ -118,11 +118,11 @@ See [[Client Side Attacks with File Containers (DLLs)]] for full implementation.
 > - Always test your delivery method against the **target's specific patch level**. MoTW bypass effectiveness varies heavily by Windows version and Office update.
 > - SMB delivery requires the victim to be on the same network or VPN, or requires a publicly accessible SMB server (firewall permitting).
 > - ISO delivery via email has become unreliable on patched Windows 11 systems — use ZIP+password or DLL sideloading as alternatives.
-> - Even if MoTW is bypassed, **AMSI** and **EDR behavioral detection** are still active. MoTW bypass solves the "Protected View" problem but not AV detection of the payload itself — see [[AV Evasion]].
+> - Even if MoTW is bypassed, **AMSI** and **EDR behavioral detection** are still active. MoTW bypass solves the "Protected View" problem but not AV detection of the payload itself — see [[Antivirus Evasion]].
 
 ---
 # Related Notes
 - [[Client Side Attacks with File Containers (DLLs)]] — DLL sideloading via signed binaries in ZIP to bypass MoTW
 - [[Phishing with Microsoft Office]] — VBA macro delivery; MoTW triggers Protected View blocking macros
-- [[AV Evasion]] — evading detection once MoTW is bypassed
+- [[Antivirus Evasion]] — evading detection once MoTW is bypassed
 - [[Pretexting]] — social engineering to convince the victim to unblock files manually

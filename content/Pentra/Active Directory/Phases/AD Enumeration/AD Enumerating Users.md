@@ -111,7 +111,7 @@ Recommended user wordlist: /usr/share/seclists/Usernames/xato-net-10-million-use
 
 > [!Note]
 > Kerbrute will automatically retrieve the AS-REP for any users that do not require the kerberos pre-authentication.
-> For more info about AS-REP Roasting check [[AD Privilege Escalation]] 
+> For more info about AS-REP Roasting check [[AS-REP Roasting]] 
 
 ---
 # Enumerating users with valid credentials (recommended)

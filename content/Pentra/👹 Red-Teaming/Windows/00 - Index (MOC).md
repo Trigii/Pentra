@@ -119,7 +119,7 @@ A recommended review order that builds concepts before combining them. Read top-
 
 Found while indexing. These render as dead links in Obsidian/Quartz:
 
-- `[[AV Evasion]]` — referenced in several notes, but the actual file is **[[Antivirus Evasion]]**. Simple rename mismatch; safe to fix across the vault.
+- ~~`[[AV Evasion]]` — referenced in several notes, but the actual file is **[[Antivirus Evasion]]**. Simple rename mismatch; safe to fix across the vault.~~ ✅ **Resolved 2026-10-22:** repointed `[[AV Evasion]]` → `[[Antivirus Evasion]]` across 11 notes. Entry kept for traceability.
 - `[[Client-Side Attacks]]` — referenced as an overview note that does not exist here. Either create a stub overview or repoint to [[Client Side Attacks with File Containers (DLLs)]].
 - `[[Windows File Transfer]]` — referenced from [[Process Injection and Migration]]; note lives elsewhere in the vault (not in this folder).
 - `[[Command and Control (C2-C&C)]]` — referenced from post-ex notes; also outside this folder.

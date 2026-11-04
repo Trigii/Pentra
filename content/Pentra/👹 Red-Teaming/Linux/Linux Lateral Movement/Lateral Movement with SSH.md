@@ -167,7 +167,7 @@ srw------- 1 offsec offsec    0 May 13 16:22 offsec@linuxvictim:22
 ssh -S /home/<USER>/.ssh/controlmaster/offsec\@linuxvictim\:22 offsec@linuxvictim
 
 # Parameters:
--S: path to SSH socket file
+-S: absolute path to SSH socket file
 ```
 
 ---

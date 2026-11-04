@@ -107,6 +107,14 @@ Parameters
 -a: attachment
 ```
 
+Alternative (better):
+```
+sudo swaks -t paul@dehospital.com --from susan@dehospital.com \      
+  --attach @osep.doc --server mail01.dehospital.com \
+  --body "Please review the attached document." \
+  --header "Subject: Q3 Payroll Report"
+```
+
 ---
 # Automating the attack
 

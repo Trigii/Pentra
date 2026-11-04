@@ -104,7 +104,7 @@ STOP (stop Inveight)
 ---
 # Password Spraying
 
-- Check [[AD Enumeration]] section for more information
+- Check [[AD Domain Enumeration]] for more information
 
 # LDAP
 

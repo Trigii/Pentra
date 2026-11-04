@@ -52,10 +52,10 @@ Sub PoC()
     ' Create a Wscript object to Invoke shell and execute the payload
 End Sub
 
-Parameters:
-payload: external program (type string)
-windowstyle: type of window (minimized, hidden, maximized, etc)
-wait: wait for completion?
+' Parameters:
+' payload: external program (type string)
+' windowstyle: type of window (minimized, hidden, maximized, etc)
+' wait: wait for completion?
 ```
 
 > [!Note]
@@ -104,7 +104,6 @@ Sub RegRead()
     regKey = "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
     MsgBox "Product Name: " & wsh.RegRead(regKey & "\ProductName")
 End Sub
-    
 ```
 
 ---
@@ -297,7 +296,7 @@ msf> set AutoRunScript post/windows/manage/migrate
 > - Consider allocating with `PAGE_READWRITE` (`0x04`) first, then calling `VirtualProtect` to switch to `PAGE_EXECUTE_READ` just before `CreateThread`.
 > - `EXITFUNC=thread` is important: using `EXITFUNC=process` would kill the Word process when the shell exits.
 > - Use `reverse_https` (port 443) over `reverse_tcp` for better firewall evasion.
-> - See [[AV Evasion]] for macro obfuscation to reduce VBA detection.
+> - See [[Antivirus Evasion]] for macro obfuscation to reduce VBA detection.
 
 **PowerShell Shellcode Runner (evade detection partially)**
 
@@ -858,5 +857,5 @@ End Sub
 - [[Client-Side Attacks]] — overview of client-side attack vectors
 - [[Pretexting]] — social engineering templates para convencer a la víctima de abrir el documento
 - [[Phishing with Calendars]] — phishing via calendar invites como vector alternativo
-- [[AV Evasion]] — técnicas para ofuscar macros y evadir detección
+- [[Antivirus Evasion]] — técnicas para ofuscar macros y evadir detección
 - [[Command and Control (C2-C&C)]] — post-exploitation una vez obtenida la shell
