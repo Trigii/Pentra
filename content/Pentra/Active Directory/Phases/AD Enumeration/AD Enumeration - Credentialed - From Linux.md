@@ -103,6 +103,6 @@ $ bloodhound-python -u USERNAME -p PASSWORD -d DOMAIN_FQDN -ns DC_IP -c All
 - [[SMB]] / [[LDAP]] — protocol-level enumeration behind these tools
 - [[AD Automatic Enumeration (BloodHound)]] — visualising privilege paths from the collected data
 - [[Impacket]] — psexec/wmiexec and other credentialed remote-exec tooling
-- [[WinRM]] — turning valid creds into a shell (evil-winrm, incl. Pass-the-Hash)
+- [[content/Pentra/Active Directory/Phases/AD Lateral Movement/WinRM]] — turning valid creds into a shell (evil-winrm, incl. Pass-the-Hash)
 - [[Kerberoasting]] / [[AS-REP Roasting]] — attacks that follow from the SPN/pre-auth findings above
 - [[Pass the Hash (PtH)]] — authenticating with an NT hash instead of a password

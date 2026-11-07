@@ -88,5 +88,5 @@ $ netexec wmi TARGET_IP -u USER -H NT_HASH -x "whoami"   # Pass-the-Hash
 - [[Impacket]] — full impacket toolkit (wmiexec/psexec/atexec/smbexec)
 - [[Pass the Hash (PtH)]] — reusing NT hashes, which all the tools above support
 - [[Pass the Ticket (PtT)]] — Kerberos-based auth (`-k`)
-- [[WinRM]] · [[Enter-PSSession]] · [[RDP]] — other lateral movement channels
+- [[content/Pentra/Active Directory/Phases/AD Lateral Movement/WinRM]] · [[Enter-PSSession]] · [[content/Pentra/Active Directory/Phases/AD Lateral Movement/RDP]] — other lateral movement channels
 - [[AD Enumeration - Credentialed - From Linux]] — obtaining the admin creds WMI needs

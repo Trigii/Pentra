@@ -112,7 +112,7 @@ STOP (stop Inveight)
 
 # RPC
 
-- Check [[content/Pentra/☠️ Classic Pentesting/1 - Information Gathering/Active Information Gathering/Services/RPC|RPC]] enumeration section for more information
+- Check [[content/Pentra/Classic Pentesting/1 - Information Gathering/Active Information Gathering/Services/RPC|RPC]] enumeration section for more information
 
 # SMB
 

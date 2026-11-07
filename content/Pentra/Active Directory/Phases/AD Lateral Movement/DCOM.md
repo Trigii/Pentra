@@ -80,5 +80,5 @@ PS C:\> type \\TARGET_IP\C$\output.txt
 
 - [[Pass the Hash (PtH)]] — para obtener la sesión de admin necesaria
 - [[WMI]] — técnica similar de ejecución remota sin SMB
-- [[WinRM]] — alternativa de movimiento lateral más común
+- [[content/Pentra/Active Directory/Phases/AD Lateral Movement/WinRM]] — alternativa de movimiento lateral más común
 - [[Enter-PSSession]] — para movimiento lateral interactivo

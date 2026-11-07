@@ -67,12 +67,12 @@ $ xfreerdp /u:USER /d:DOMAIN /p:PASSWORD /v:TARGET_IP /cert:ignore /dynamic-reso
 > ```bash
 > $ xfreerdp /u:USER /d:DOMAIN /pth:NT_HASH /v:TARGET_IP
 > ```
-> If Restricted Admin is disabled, PtH over RDP fails — fall back to [[Pass the Hash (PtH)]] over SMB/WinRM, or crack the hash first. See also [[WinRM]] and [[Enter-PSSession]] for hash-friendly remoting.
+> If Restricted Admin is disabled, PtH over RDP fails — fall back to [[Pass the Hash (PtH)]] over SMB/WinRM, or crack the hash first. See also [[content/Pentra/Active Directory/Phases/AD Lateral Movement/WinRM]] and [[Enter-PSSession]] for hash-friendly remoting.
 
 # Related notes
 
 - [[Pass the Hash (PtH)]] — reusing NT hashes (Restricted Admin RDP, or SMB/WinRM fallback).
-- [[WinRM]] / [[Enter-PSSession]] — alternative remote-execution channels (mind the Kerberos double-hop noted above).
+- [[content/Pentra/Active Directory/Phases/AD Lateral Movement/WinRM]] / [[Enter-PSSession]] — alternative remote-execution channels (mind the Kerberos double-hop noted above).
 - [[Kerberoasting]] — a common way to obtain the credentials that grant RDP execution rights.
 - [[AD Automatic Enumeration (BloodHound)]] — the tool behind the "who can RDP where" queries used above.
 

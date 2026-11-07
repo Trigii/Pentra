@@ -114,7 +114,7 @@ Used for backward compatibility (challenge-response with the NTLM hash of the us
 
 4. **AD Lateral Movement**
 	- Credential / ticket reuse: [[Pass the Hash (PtH)]], [[Pass the Ticket (PtT)]], [[NetNTLMv2]], [[Pre2K]]
-	- Remote execution: [[WinRM]], [[Enter-PSSession]], [[WMI]], [[DCOM]], [[RDP]], [[RPC]], [[Impacket]], [[SQL Server Admin]]
+	- Remote execution: [[content/Pentra/Active Directory/Phases/AD Lateral Movement/WinRM]], [[Enter-PSSession]], [[WMI]], [[DCOM]], [[content/Pentra/Active Directory/Phases/AD Lateral Movement/RDP]], [[content/Pentra/Active Directory/Phases/AD Lateral Movement/RPC]], [[Impacket]], [[SQL Server Admin]]
 
 5. **AD Persistence** — [[Golden Ticket]], [[Silver Ticket]], [[Shadow Copies]]
 

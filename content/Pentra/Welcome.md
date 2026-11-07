@@ -17,7 +17,7 @@ This Vault contains the ultimate Cheatsheet for pentesting. It will be updated w
 ---
 # Classic Pentesting Phases
 
-1. [[content/Pentra/☠️ Classic Pentesting/1 - Information Gathering/Information Gathering]]
+1. [[content/Pentra/Classic Pentesting/1 - Information Gathering/Information Gathering]]
 
 2. [[Exploitation]]
 
@@ -29,7 +29,7 @@ This Vault contains the ultimate Cheatsheet for pentesting. It will be updated w
 
 # Red Teaming (alpha version)
 
-1. [[Client-Side attacks]]
+1. [[Client-Side Attacks]]
 2. [[Command and Control (C2-C&C)]]
 
 See also the structured Red-Teaming workflow and the Windows chain index:

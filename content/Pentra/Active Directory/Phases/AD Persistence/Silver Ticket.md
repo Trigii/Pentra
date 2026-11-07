@@ -222,7 +222,7 @@ The `/service` (or `-spn`) value determines what you can reach with the forged t
 | --- | --- |
 | `CIFS` | File shares (`\\host\c$`), remote file access |
 | `HOST` | Scheduled tasks, general host operations |
-| `HTTP` | Web services / WinRM / WSMan (often chains with [[WinRM]]) |
+| `HTTP` | Web services / WinRM / WSMan (often chains with [[content/Pentra/Active Directory/Phases/AD Lateral Movement/WinRM]]) |
 | `MSSQLSvc` | MSSQL databases (`impacket-mssqlclient -k`) |
 | `LDAP` | Directory ops, including DCSync-style abuse |
 | `HOST` + `RPCSS` | WMI remote execution |
@@ -244,4 +244,4 @@ The `/service` (or `-spn`) value determines what you can reach with the forged t
 - [[Kerberoasting]] — a common way to obtain the service account hash used to forge the ticket
 - [[Impacket]] — `ticketer.py`, `getST`, `mssqlclient` used from Linux above
 - [[AD Enumeration with PowerView]] — locating SPNs and the domain SID needed as inputs
-- [[WinRM]] — turning an `HTTP`/`HOST` silver ticket into an interactive session
+- [[content/Pentra/Active Directory/Phases/AD Lateral Movement/WinRM]] — turning an `HTTP`/`HOST` silver ticket into an interactive session

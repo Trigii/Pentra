@@ -12,13 +12,13 @@ When you request or reuse a Kerberos service ticket (TGS), the **SPN service cla
 | Service class (SPN) | Used for |
 | --- | --- |
 | `cifs` | [[SMB]] file access, `psexec`, `smbexec` (see [[Impacket]]) |
-| `http` / `www` | Web apps, [[WinRM]] / PowerShell Remoting, PSRemoting |
+| `http` / `www` | Web apps, [[content/Pentra/Active Directory/Phases/AD Lateral Movement/WinRM]] / PowerShell Remoting, PSRemoting |
 | `ldap` | [[AD DCSync\|DCSync]], LDAP binds, directory queries |
 | `host` | [[WMI]] and several RPC-based actions (service creation, scheduled tasks) |
 | `mssqlsvc` | [[SQL Server Admin\|MSSQL]] logins (common [[Kerberoasting]] target) |
 | `rpcss` | WMI / DCOM operations |
-| `wsman` | [[WinRM]] (alternative SPN class alongside `http`) |
-| `termsrv` | [[RDP]] sessions |
+| `wsman` | [[content/Pentra/Active Directory/Phases/AD Lateral Movement/WinRM]] (alternative SPN class alongside `http`) |
+| `termsrv` | [[content/Pentra/Active Directory/Phases/AD Lateral Movement/RDP]] sessions |
 
 > [!NOTE]
 > A single account can expose several SPNs. When you crack or forge a ticket, generate it for the **exact** service class you need. For example, a [[Silver Ticket]] for `cifs/host.domain.local` grants SMB access, while `host/host.domain.local` is required for WMI-based execution.

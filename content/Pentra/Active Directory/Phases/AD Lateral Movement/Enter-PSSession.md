@@ -13,7 +13,7 @@ tags:
 > [!Requirements]
 > Valid user credentials and remote management permissions (the target user must be a member of the `Remote Management Users` group, or a local administrator on the target).
 
-`Enter-PSSession` opens an interactive PowerShell remoting session over WinRM (PSRemoting), giving us a remote shell on the target host. It relies on the same underlying transport as [[WinRM]] (ports 5985/HTTP and 5986/HTTPS) and is a common lateral movement technique once we hold valid domain credentials.
+`Enter-PSSession` opens an interactive PowerShell remoting session over WinRM (PSRemoting), giving us a remote shell on the target host. It relies on the same underlying transport as [[content/Pentra/Active Directory/Phases/AD Lateral Movement/WinRM]] (ports 5985/HTTP and 5986/HTTPS) and is a common lateral movement technique once we hold valid domain credentials.
 
 - If we are authenticating as a different user than the current:
 ```powershell
@@ -40,7 +40,7 @@ PS C:\> Invoke-Command -ComputerName "TARGET_FQDN" -Credential $credentials -Scr
 ```
 
 > [!Note]
-> If credentials are reused as a hash rather than a plaintext password, prefer a Pass-the-Hash capable tool such as `evil-winrm` (see [[WinRM]]) or [[Pass the Hash (PtH)]], since `Enter-PSSession` itself requires a plaintext password (or a Kerberos ticket via [[Pass the Ticket (PtT)]]).
+> If credentials are reused as a hash rather than a plaintext password, prefer a Pass-the-Hash capable tool such as `evil-winrm` (see [[content/Pentra/Active Directory/Phases/AD Lateral Movement/WinRM]]) or [[Pass the Hash (PtH)]], since `Enter-PSSession` itself requires a plaintext password (or a Kerberos ticket via [[Pass the Ticket (PtT)]]).
 
 > [!Tip]
-> Other lateral movement options over different protocols include [[WMI]], [[RDP]] and [[Impacket]] (psexec/wmiexec/atexec).
+> Other lateral movement options over different protocols include [[WMI]], [[content/Pentra/Active Directory/Phases/AD Lateral Movement/RDP]] and [[Impacket]] (psexec/wmiexec/atexec).

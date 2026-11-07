@@ -83,7 +83,7 @@ PS> Test-AdminAccess -ComputerName ACADEMY-EA-MS01 (test if the current user is 
 ```
 
 > [!Note]
-> Admin rights on computers allow users to gain RCE in several ways: [[RDP]] (recommended), [[WinRM]], [[WMI]].... They can also impersonate other users. See [[Impacket]] and [[Enter-PSSession]] for remote execution once local admin is confirmed.
+> Admin rights on computers allow users to gain RCE in several ways: [[content/Pentra/Active Directory/Phases/AD Lateral Movement/RDP]] (recommended), [[content/Pentra/Active Directory/Phases/AD Lateral Movement/WinRM]], [[WMI]].... They can also impersonate other users. See [[Impacket]] and [[Enter-PSSession]] for remote execution once local admin is confirmed.
 
 - Enumerate users are loged in to a specified computer: 
 ```powershell

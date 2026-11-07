@@ -62,5 +62,5 @@ PS> Set-DomainUserPassword -Identity TARGET_USER -AccountPassword $pass
 # Related notes
 - [[AD ACL Enumeration and Abuse]]
 - [[AD Enumeration with PowerView]]
-- [[WinRM]]
+- [[content/Pentra/Active Directory/Phases/AD Lateral Movement/WinRM]]
 - [[Pass the Hash (PtH)]]

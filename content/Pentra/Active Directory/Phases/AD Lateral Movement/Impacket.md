@@ -69,4 +69,4 @@ $ impacket-psexec -k -no-pass DOMAIN_FQDN/ADMIN_USER@TARGET.DOMAIN_FQDN
 ```
 
 > [!Tip]
-> Related lateral movement techniques in this vault: [[Pass the Hash (PtH)]], [[Pass the Ticket (PtT)]], [[WMI]], [[WinRM]] and [[RDP]].
+> Related lateral movement techniques in this vault: [[Pass the Hash (PtH)]], [[Pass the Ticket (PtT)]], [[WMI]], [[content/Pentra/Active Directory/Phases/AD Lateral Movement/WinRM]] and [[content/Pentra/Active Directory/Phases/AD Lateral Movement/RDP]].

@@ -122,7 +122,7 @@ $ nxc smb TARGET_IP -u Administrator -H NTLM_HASH --sam --lsa
 ---
 
 ### Related notes
-- [[WinRM]] — alternative remote access (Evil-WinRM also accepts `-H NTLM_HASH`)
+- [[content/Pentra/Active Directory/Phases/AD Lateral Movement/WinRM]] — alternative remote access (Evil-WinRM also accepts `-H NTLM_HASH`)
 - [[Pass the Ticket (PtT)]] — the Kerberos-ticket analogue of PtH
 - [[Kerberoasting]] / [[AS-REP Roasting]] — harvesting crackable Kerberos hashes
 - [[AD Enumeration with PowerView]] — `Find-LocalAdminAccess` and general enumeration used above

@@ -71,7 +71,7 @@ $ sudo bloodhound-python -u 'USERNAME' -p 'PASSWORD' -ns DC_IP -d DOMAIN_FQDN -c
 > - `Backup Operators` — can read/write any file via backup privileges (path to DC compromise).
 > - `Server Operators` — can manage services on DCs.
 > - `DnsAdmins` — can load an arbitrary DLL into the DNS service running as SYSTEM.
-> - `Remote Management Users` — WinRM access (see [[WinRM]]).
+> - `Remote Management Users` — WinRM access (see [[content/Pentra/Active Directory/Phases/AD Lateral Movement/WinRM]]).
 
 # Related notes
 - [[AD Enumerating Users]]
